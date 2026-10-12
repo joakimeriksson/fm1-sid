@@ -161,8 +161,8 @@ chip drawn on the LCD.
 - `tools/fwsc.py` packs it as an FM-1 update package, `web/sidplayer.fwsc`: Felucca's update
   loader (built here) and `tools/fm1pkg_make.py`, with three Apache-2.0 files of JieLi's AC79
   SDK (`tools/fetch_ext.sh` fetches them into `ext/ac79sdk` and checks Felucca's hashes; the
-  page ships `web/LICENSES/Apache-2.0.txt`). The app is the image with an empty pack: its own
-  tune and the synth. `../web/fwsc.js` unpacks exactly that app from it, and the
+  page ships `web/LICENSES/Apache-2.0.txt`). The app is the image with a pack of its own tune that starts it in the synth mode (silent
+  until a key is played; HOME switches to the player). `../web/fwsc.js` unpacks exactly that app from it, and the
   emulator boots it like the community packages. Not tried on a real FM-1 yet.
 
 ```sh

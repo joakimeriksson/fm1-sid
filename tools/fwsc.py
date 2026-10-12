@@ -2,8 +2,9 @@
 """The SID player as an FM-1 update package (.fwsc), installable the way community firmwares
 are and bootable by the emulator's page (../web):
     tools/fwsc.py [OUT.fwsc]       (default web/sidplayer.fwsc)
-The app is build/fw/sidplayer.bin (firmware/build.sh: the firmware with an empty tune pack, so
-it plays its own tune and has the synth mode). The package is Felucca's: its update loader
+The app is web/sidplayer.bin (firmware/build.sh: the firmware without a tune pack) plus a pack
+of its own tune (web/house.sid) that starts it in the synth mode: an FM-1 that boots it is a
+synth, silent until a key is played; HOME switches to the player and the tune. The package is Felucca's: its update loader
 (ext/Felucca/firmware/loader, built here with the JieLi toolchain) and tools/fm1pkg_make.py,
 which takes three files of JieLi's AC79 SDK (Apache-2.0; tools/fetch_ext.sh fetches them into
 ext/ac79sdk and checks them against Felucca's hashes). Ship LICENSES/Apache-2.0.txt with it.
@@ -15,18 +16,22 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FEL = ROOT / "ext" / "Felucca"
-os.environ.setdefault("JIELI_TOOLCHAIN", (sorted(glob.glob(str(ROOT.parent / "fm-1" / "reference" / "toolchain" / "jieli-linux-toolchains-*"))) or [""])[-1])
+os.environ.setdefault("JIELI_TOOLCHAIN", (sorted(glob.glob(str(ROOT.parent / "reference" / "toolchain" / "jieli-linux-toolchains-*"))) or [""])[-1])
 os.environ.setdefault("AC79_SDK", str(ROOT / "ext" / "ac79sdk"))
 sys.path.insert(0, str(FEL / "tools"))
 os.chdir(FEL)                                   # (Felucca's build helpers use repo-relative paths)
 import build as felucca                         # noqa: E402
 import fm1pkg_make as pkg                       # noqa: E402
+sys.path.insert(0, str(ROOT / "tools"))
+from sidpack import pack                        # noqa: E402
+
+SYNTH = 8                                       # pack flag: start in the synth mode
 
 PRODUCT = "FM-1_900"                            # the identity Felucca's own development builds carry
 
 
 def main(out):
-    app = (ROOT / "build" / "fw" / "sidplayer.bin").read_bytes()
+    app = (ROOT / "web" / "sidplayer.bin").read_bytes() + pack([((ROOT / "web" / "house.sid").read_bytes(), 0)], 0, SYNTH)
     for rel, sha in felucca.SDK_SHA256.items():
         if __import__("hashlib").sha256(pkg.sdk_file(rel)).hexdigest() != sha:
             raise SystemExit(f"{rel}: not the AC79NN_SDK_V1.2.1 file Felucca's packages are made with")
