@@ -49,6 +49,7 @@
   h1 { font-size: clamp(32px, 6vw, 60px); line-height: 1.04; letter-spacing: -.03em; margin: 0 0 18px; font-weight: 700; }
   h1 em { font-style: normal; color: var(--c64-hi); }
   .lede { font-size: clamp(16px, 1.6vw, 19px); color: #cfccd6; margin: 0; max-width: 720px; }
+  .runs { font-family: var(--mono); font-size: clamp(13px, 1.3vw, 15px); color: var(--c64-hi); margin: -6px 0 16px; }
 
   /* ---- the synth */
   .deck { position: relative; }
@@ -239,6 +240,7 @@
   <section class="intro">
     <p class="kicker">M-VAVE FM-1 · pi32v2 @ 240 MHz · 6502 · reSID 0.16</p>
     <h1>Commodore 64 music,<br>on a <em>pocket FM synth</em>.</h1>
+    <p class="runs">Runs an emulated 6510 + SID in the emulated FM-1 on a WASM virtual machine.</p>
     <p class="lede">Every tune runs its own 6502 code, and reSID makes the sound: all of it on the FM-1’s
       CPU, in a firmware written for it. Here the whole synth is emulated in your browser. Press
       Power, then pick a tune from the 61,000 in the High Voltage SID Collection, or switch to the
