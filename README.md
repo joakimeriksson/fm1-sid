@@ -28,7 +28,9 @@ Dessutom finns en **SID-spelare som firmware** (`firmware/`): riktiga C64-låtar
 med sin egen 6502-kod på FM-1:ans CPU, ljudet från reSID 0.16 (eller egna modellen), och
 LCD:n visar de tre rösterna, sync/ring och filtret. Den går i `fm1-emu` och som webbsida
 (`web/`, GitHub Pages) där hela FM-1 emuleras och man kan söka och spela hela HVSC; låtarna
-hämtas direkt från hvsc.c64.org. Ljudet stämmer med reSID på datorn.
+hämtas direkt från hvsc.c64.org. Ljudet stämmer med reSID på datorn. Som synth (där den startar
+som uppdateringspaket) har den en stegsequencer och stereoeffekter efter Felucca: chorus, delay
+och reverb.
 
 ## Short answer
 
@@ -37,6 +39,8 @@ the model written here, measured on the emulated FM-1 and bit-identical to the h
 **Use reSID 0.16 for the chip** (real combined-waveform tables, measured filter curves, years
 of use in VICE / sidplay); keep `sidsynth` (the instrument driver) on top. The high-quality,
 alias-free modes of reSID and the newer engines do not fit the FM-1 (see the comparison).
+The player firmware built on it is also a synth (a step sequencer, stereo chorus, delay and
+reverb after Felucca's), which its update package starts in.
 
 ## Engine comparison: own model, reSID 0.16, reSID 1.0, reSIDfp
 
@@ -157,7 +161,7 @@ chip drawn on the LCD.
   computed in Python frame by frame as SID register writes (bass and drums through a resonant
   low-pass, arpeggios, a lead that goes plain, hard-synced, then ring-modulated) and a 60-byte
   6502 routine plays one frame of writes per call.
-- `firmware/build.sh` makes `build/fw/sidplayer.bin` (196 KB of the 568 KB app slot: player,
+- `firmware/build.sh` makes `build/fw/sidplayer.bin` (205 KB of the 568 KB app slot: player,
   reSID with its wave tables in flash, the own model, a font and the own tune; 425 KB RAM of
   432 KB with the effects' 78 KB),
   `sidplayer_xip.bin` for `fm1-emu --bin`, and copies the image without a pack to

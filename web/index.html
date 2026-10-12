@@ -242,7 +242,8 @@
     <p class="lede">Every tune runs its own 6502 code, and reSID makes the sound: all of it on the FM-1’s
       CPU, in a firmware written for it. Here the whole synth is emulated in your browser. Press
       Power, then pick a tune from the 61,000 in the High Voltage SID Collection, or switch to the
-      synth and play its SID instruments from the keys or a MIDI keyboard.</p>
+      synth and play its SID instruments from the keys or a MIDI keyboard, through a stereo chorus,
+      delay and reverb.</p>
   </section>
 
   <section class="deck" aria-label="The emulated FM-1">
@@ -370,20 +371,21 @@
 
   <section class="how" id="how">
     <h2 class="sec">How it works</h2>
-    <p class="sub">Six layers, from your speakers down to a 1982 sound chip. The page only builds the
+    <p class="sub">Seven layers, from your speakers down to a 1982 sound chip. The page only builds the
       firmware image and moves keys; everything below the first layer is the FM-1’s own CPU at work.</p>
     <ol class="stack">
       <li style="--d:0"><b>Your browser<small>AudioWorklet</small></b><span>Asks for 128 frames at a time. The emulator runs until the FM-1’s I2S DMA has produced them, so the sound card is the clock.</span></li>
       <li style="--d:1"><b>fm1-core<small>Rust → WebAssembly</small></b><span>The JieLi AC791N’s pi32v2 CPU with its interrupts, timers, I2S, the SPI screen and the key matrix, worked out from the stock firmware. Idle time is skipped, not emulated.</span></li>
-      <li style="--d:2"><b>The player firmware<small>C · 196 KB</small></b><span>Runs on Felucca’s hardware layer. The tunes ride after it in flash as a tune pack, which this page builds from your playlist and boots.</span></li>
+      <li style="--d:2"><b>The player firmware<small>C · 205 KB</small></b><span>Runs on Felucca’s hardware layer. The tunes ride after it in flash as a tune pack, which this page builds from your playlist and boots.</span></li>
       <li style="--d:3"><b>A 6502<small>floooh’s m6502</small></b><span>Each tune’s own init and play routines, cycle by cycle, in 64 KB of C64 memory with the I/O banking, the CIA timer and the raster line.</span></li>
       <li style="--d:4"><b>SID writes<small>cycle-stamped</small></b><span>The main loop runs the tune up to three frames ahead and queues every register write with the C64 cycle it happened on.</span></li>
       <li style="--d:5"><b>reSID 0.16<small>Dag Lem</small></b><span>Clocked to each write’s cycle inside the audio interrupt, with measured 6581 and 8580 waveforms and filters. Or fm1-sid’s own integer model, at about 70 % of the cost.</span></li>
+      <li style="--d:6"><b>Effects<small>after Felucca’s</small></b><span>A stereo chorus, a delay on the tempo and a room reverb after the chip, in the same interrupt: the mono SID gets width. The synth starts with a little of each; the player stays dry until you turn them up.</span></li>
     </ol>
     <div class="facts">
-      <div><b>9.5 %</b><span>of the 240 MHz core goes to the audio interrupt with reSID</span></div>
+      <div><b>9.5 %</b><span>of the 240 MHz core goes to the audio interrupt with reSID, 14 % with the effects</span></div>
       <div><b>0.984</b><span>correlation with reSID on a PC, fed the same register stream</span></div>
-      <div><b>196 KB</b><span>of firmware: player, two SID engines, the screen and its own tune</span></div>
+      <div><b>205 KB</b><span>of firmware: player, synth, two SID engines, the effects, the screen and its own tune</span></div>
       <div><b id="facts-n">61,157</b><span>tunes in HVSC, one search away</span></div>
     </div>
     <p class="note">The numbers come from the emulator, which counts instructions, not cycles: a real FM-1
@@ -404,7 +406,7 @@
       <div><h3>Links</h3><p>The address bar follows the tune: copy it to send someone straight to it. <code>?t=</code> takes any HVSC path, <code>?mode=synth</code> starts on the synth.</p></div>
     </div>
       <p class="note"><b>On a real FM-1</b>: <a href="sidplayer.fwsc" download>sidplayer.fwsc</a> is this firmware as an
-      update package (the player with its own tune, and the synth; no HVSC tunes), made with Felucca’s update loader and
+      update package (it starts as the synth, with the effects; HOME switches to the player and its own tune; no HVSC tunes), made with Felucca’s update loader and
       package tools, so it installs the way the community firmwares do. It has not been tried on a real FM-1 yet. The
       package carries three files of JieLi’s SDK under the <a href="LICENSES/Apache-2.0.txt">Apache-2.0 licence</a>.</p>
   </section>
@@ -413,7 +415,7 @@
     <p><b>Tunes</b>: the <a href="https://www.hvsc.c64.org/">High Voltage SID Collection</a>, each by its composer; fetched from hvsc.c64.org when you play them, none hosted here.
       <b>Pocket Sync</b> is this project’s own.</p>
     <p><b>Built on</b> reSID 0.16 by Dag Lem (GPL-2.0+), <a href="https://github.com/floooh/chips">m6502.h</a> by Andre Weissflog (zlib),
-      the <a href="https://github.com/hugelton/Felucca">Felucca</a> hardware layer by Leo Kuroshita / Hügelton Instruments (GPL-3.0),
+      the <a href="https://github.com/hugelton/Felucca">Felucca</a> hardware layer and effects by Leo Kuroshita / Hügelton Instruments (GPL-3.0),
       and this repository’s FM-1 emulator. The firmware and this page are GPL-3.0; the PSID player and the own SID model are BSD-2.</p>
     <p>Not affiliated with M-VAVE or Commodore. <a href="https://github.com/joakimeriksson/fm1-emu/tree/master/fm1-sid">Source on GitHub</a> ·
       <a href="../">The FM-1 emulator with its other firmwares</a></p>
