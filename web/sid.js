@@ -43,6 +43,7 @@ const st = {
   booted: false,
   mode: 0,                             // 0 the tune player, 1 the synth (HOME switches)
   patch: 0, octave: 0, knob: [0, 0, 0, 0],
+  fxView: 0,                           // the firmware's FX page is up: its knobs and encoders are the effects'
   // the step sequencer (the firmware's, mirrored): its page, running, recording, the selected
   // track, each track's patch and knobs, the tempo
   seq: null,
@@ -96,7 +97,7 @@ function setKey(id, on) {
   if (!on || !st.booted) return;
   if (id === KEY.HOME) { st.mode ^= 1; restarted(); showList(); pickTab($(st.mode ? "tab-synth" : "tab-list")); }
   else if (id === KEY.EDIT) { st.engine ^= 1; store("fm1sid.engine", st.engine); restarted(); }
-  else if (id === KEY.FX) { st.model = st.model === "6581" ? "8580" : "6581"; restarted(); }
+  else if (id === KEY.FX) st.fxView ^= 1;
   else if (st.mode) {
     const q = st.seq;
     if (id === KEY.OCTUP) st.octave = Math.min(2, st.octave + 1);
@@ -116,7 +117,9 @@ function turnMachine(enc, clicks) {
   send({ type: "enc", enc, clicks });
   if (!st.booted) return;
   const q = st.seq;
-  if (st.mode && enc === 0 && q.view && !q.on) {
+  if (st.fxView && enc !== 1) {        // the FX page: the effects (the firmware shows them); PRESETS the chip
+    if (enc === 6) { st.model = st.model === "6581" ? "8580" : "6581"; restarted(); showNow(); }
+  } else if (st.mode && enc === 0 && q.view && !q.on) {
     // (SELECT on the sequencer's page moves the step cursor)
   } else if (st.mode && (enc === 6 || enc === 0) && parts()) {
     q.trk[q.sel] = ((q.trk[q.sel] + clicks) % (KIT + 1) + KIT + 1) % (KIT + 1);
@@ -257,6 +260,7 @@ async function boot(first) {
   st.patch = 0;                                      // (the firmware starts on these)
   st.octave = 0;
   st.knob = [0, 0, 0, 0];
+  st.fxView = 0;
   st.seq = seqFresh();
   st.model = modelOf(packed[st.idx]);
   st.booted = false;

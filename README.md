@@ -120,7 +120,16 @@ chip drawn on the LCD.
   envelope, pulse width; SYNC / RING badges), the filter (mode, routing, cutoff, resonance),
   an oscilloscope and the CPU load.
 - Keys: PRESETS / SELECT encoder or OCT− / OCT+ = tune, PLAY = pause, EDIT = engine (reSID /
-  own model), FX = 6581 / 8580. Hold OCT− and OCT+ for 3 s for the USB update mode.
+  own model), FX = the effects page (below). Hold OCT− and OCT+ for 3 s for the USB update mode.
+- **Effects** (`firmware/fx.c`, after Felucca's `src/fx.c`, GPL-3.0-only): a stereo chorus (two
+  taps swinging against each other), a tempo delay whose right side answers 1.5 times later
+  (1/16, 1/8, dotted 1/8 or 1/4 of the tempo, at most 0.49 s; low-passed repeats) and Felucca's
+  ROOM reverb (4 damped combs, 2 allpasses). The chip is mono, the FM-1's output stereo: the
+  chorus and the delay give it width. FX opens their page: KNOB1 chorus, KNOB2 delay, KNOB3 its
+  time, KNOB4 reverb, SELECT the delay's feedback, PRESETS 6581 / 8580; FX again leaves it. One
+  setting per mode: the synth starts with a little of each, the player dry (its output is then
+  the chip's samples, bit for bit as without the effects). They always run, like sends, and
+  take the audio interrupt from ~10 % to ~14 % of the core; their buffers are 78 KB of RAM.
 - **Synth mode** (HOME switches): the 27 note keys play `src/sidsynth.c`'s 12 instruments on
   the same chip and engine. The driver's register writes go into the same cycle-stamped
   queue as a tune's: `sidsynth` has an optional write / envelope hook for another engine
@@ -149,7 +158,8 @@ chip drawn on the LCD.
   low-pass, arpeggios, a lead that goes plain, hard-synced, then ring-modulated) and a 60-byte
   6502 routine plays one frame of writes per call.
 - `firmware/build.sh` makes `build/fw/sidplayer.bin` (196 KB of the 568 KB app slot: player,
-  reSID with its wave tables in flash, the own model, a font and the own tune; 350 KB RAM),
+  reSID with its wave tables in flash, the own model, a font and the own tune; 425 KB RAM of
+  432 KB with the effects' 78 KB),
   `sidplayer_xip.bin` for `fm1-emu --bin`, and copies the image without a pack to
   `web/sidplayer.bin` (committed, since CI has no JieLi toolchain).
 - The main loop sleeps (`idle`) until the next interrupt. On the FM-1 that saves power; in
@@ -257,8 +267,8 @@ tools/tunes.sh,           HVSC tunes on every engine + sidplayfp reference; alig
   refcheck.py
 player/psid.h, psid.c     PSID tunes on floooh's m6502 (the C64 side: RAM, banking, CIA latch)
 player/psidlog.c          the same on the host -> sidlog v2, to check against libsidplayfp
-firmware/main.c,          the FM-1 SID player: 6502 + reSID 0.16 / own model, LCD visualiser
-  resid_glue.cc, app.ld,  (GPL-3.0-only, on Felucca's HAL); tunes from a pack after the image
+firmware/main.c, fx.c,    the FM-1 SID player: 6502 + reSID 0.16 / own model, LCD visualiser,
+  resid_glue.cc, app.ld,  effects (GPL-3.0-only, on Felucca's HAL); tunes from a pack after the image
   gen_assets.py, build.sh
 tools/sidpack.py          a firmware image with a tune pack
 tools/fwsc.py             the firmware as an FM-1 update package (web/sidplayer.fwsc)

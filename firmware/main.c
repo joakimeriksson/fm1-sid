@@ -11,8 +11,9 @@
  * chip, PRESETS / SELECT = patch, OCT- / OCT+ = octave, KNOB1..4 = cutoff, resonance, attack,
  * release. Its step sequencer: SEQ = its page, PLAY = run / stop, REC = record, SCL / ENV / LFO =
  * track 1 / 2 / 3 (PRESETS then picks the track's patch), ALGORITHM = tempo, GLO = clear the step,
- * ARP = clear the track. Both: EDIT = engine (reSID / own), FX = 6581 / 8580. Hold
- * OCT- and OCT+ for 3 s: the USB update mode (UBOOT).
+ * ARP = clear the track. Both: EDIT = engine (reSID / own); FX = the effects page (firmware/fx.c:
+ * KNOB1 chorus, KNOB2 delay, KNOB3 its time, KNOB4 reverb, SELECT the delay's feedback, PRESETS
+ * 6581 / 8580; FX again leaves it). Hold OCT- and OCT+ for 3 s: the USB update mode (UBOOT).
  *
  * Timing: the main loop runs the play routine up to three frames ahead and queues its SID
  * writes with their C64 cycle; the audio interrupt (ALNK0, 128 frames a half buffer) clocks
@@ -394,6 +395,8 @@ static void syn_step(void)
 }
 
 /* ------------------------------------------------------------------------ audio ISR --- */
+static void fx_block(const short *in, int32_t *o, uint32_t n);   /* firmware/fx.c */
+
 static void apply(const ev_t *e)
 {
     regs[e->reg & 31] = e->val;
@@ -474,11 +477,9 @@ void fm1_alnk0_irq(void)
             for (i = 0; i < HALF_FRAMES; i++)
                 s[i] = 0;
         }
-        for (i = 0; i < HALF_FRAMES; i++) {
-            o[2u * i] = o[2u * i + 1u] = (int32_t)s[i] * (1 << OUT_SHIFT);
-            if (i & 1u)
-                scope[scope_w++ & 511u] = s[i];
-        }
+        fx_block(s, o, HALF_FRAMES);
+        for (i = 1; i < HALF_FRAMES; i += 2u)
+            scope[scope_w++ & 511u] = s[i];
         fm1_audio_ack_half();
         isr_ticks += fm1_ticks() - t0;
         isr_halves++;
@@ -655,6 +656,8 @@ static void badge(int x, int y, const char *s, int on, uint16_t c)
     text(x, y, s, on ? C_BLUE : C_DGREY);
 }
 
+#include "fx.c"
+
 static const char *trk_name(uint32_t t)
 {
     return trk_patch[t] == KIT ? "DRUM KIT" : SID_PATCHES[trk_patch[t]].name;
@@ -759,7 +762,7 @@ static void draw(void)
     fill(0, 0, 240, 14, C_LBLUE);
     text(2, 1, "FM-1 SID", C_WHITE);
     text(240 - 8 * 13 - 2, 1, engine ? "fm1-sid model" : "  reSID  0.16", C_YELLOW);
-    if (mode && seq_view) {
+    if (mode && seq_view && !fx_view) {
         /* (the sequencer's page draws its own lines) */
     } else if (mode) {                     /* the patch, the knobs, the octave */
         static const char *const KN[4] = {"CUT", "RES", "A", "R"};
@@ -813,9 +816,11 @@ static void draw(void)
     p = cat(line, "CPU ");
     p = fmt_u(p, load, 1);
     cat(p, "%");
-    if (!(mode && seq_view))
+    if (!(mode && seq_view && !fx_view))
         text(240 - 8 * 8, 43, line, C_GREY);
-    if (mode && seq_view) {
+    if (fx_view) {
+        draw_fx();
+    } else if (mode && seq_view) {
         draw_seq();
     } else {
     /* voices */
@@ -1077,6 +1082,12 @@ static void fm1_main(void)
                 start_synth();
             e &= ~(1u << 8);
         }
+        if (e & (1u << 2))                  /* FX: the effects page */
+            fx_view = !fx_view;
+        if (fx_view && fx_keys()) {         /* (its encoders are the page's) PRESETS: the chip */
+            model = !model;
+            if (mode) start_synth(); else start(play_idx, 0);
+        }
         if (mode) {
             synth_keys(e);
         } else {
@@ -1091,10 +1102,6 @@ static void fm1_main(void)
         }
         if (e & (1u << 6)) {
             engine = !engine;
-            if (mode) start_synth(); else start(play_idx, 0);
-        }
-        if (e & (1u << 2)) {
-            model = !model;
             if (mode) start_synth(); else start(play_idx, 0);
         }
         /* OCT- and OCT+ held 3 s: the USB update mode */

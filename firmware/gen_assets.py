@@ -4,6 +4,7 @@
   - HOUSE: the firmware's own tune (tools/housetune.py), played when no tune pack is appended
     firmware/gen_assets.py OUT.h
 SPDX-License-Identifier: BSD-2-Clause"""
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -13,7 +14,8 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def font():
-    f = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 11)
+    # DEJAVU_MONO: the font file where it is not in Debian's place (macOS: matplotlib has one)
+    f = ImageFont.truetype(os.environ.get("DEJAVU_MONO", "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"), 11)
     rows = []
     for c in range(32, 127):
         im = Image.new("1", (8, 12), 0)
