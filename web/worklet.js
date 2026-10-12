@@ -1,10 +1,10 @@
-// The FM-1 in the audio thread (after ../fm-1/web/worklet.js): each 128-frame quantum runs the
+// The FM-1 in the audio thread (after ../web/worklet.js): each 128-frame quantum runs the
 // emulated machine until its I2S DMA has produced 128 frames, so the audio device paces the
 // emulation. This one boots a raw app image (the SID player firmware + its tune pack) at XIP
 // 0x02000120. The page gets the LCD, the LEDs and the timing about 30 times a second.
 // SPDX-License-Identifier: GPL-3.0-only
 
-// The emulator's WebAssembly JIT, host side (as ../fm-1/web/jit.js): compile a hot region's
+// The emulator's WebAssembly JIT, host side (as ../web/jit.js): compile a hot region's
 // module and install its `run` in the emulator's function table; 0 = stay interpreted.
 function jitImports(exports) {
   return {

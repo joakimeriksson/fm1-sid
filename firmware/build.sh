@@ -8,7 +8,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 set -eu
 cd "$(dirname "$0")/.."
-TC="${JIELI_TOOLCHAIN:-$(ls -d ../fm-1/reference/toolchain/jieli-linux-toolchains-* 2>/dev/null | tail -1)}"
+TC="${JIELI_TOOLCHAIN:-$(ls -d ../reference/toolchain/jieli-linux-toolchains-* 2>/dev/null | tail -1)}"
 O=build/fw
 F=ext/Felucca/firmware
 L="$TC/pi32v2/lib/r3"

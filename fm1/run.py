@@ -3,7 +3,7 @@
 
     fm1/run.py [chips ...] [--opt -O2|-Os]
 
-For each chip count: build (fm1/build.sh), run ../fm-1's fm1-emu with a break on bench_mark,
+For each chip count: build (fm1/build.sh), run the emulator's fm1-emu with a break on bench_mark,
 take the instruction counts between the marks, check the hash against the host build
 (build/sid_demo hash, same workload) and write the emulator's samples to
 build/workload_fm1_<chips>.wav. Instructions are not cycles: the % of a 240 MHz core assumes
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EMU = ROOT.parent / "fm-1" / "target" / "release" / "fm1-emu"
+EMU = ROOT.parent / "target" / "release" / "fm1-emu"
 RES = 0x01C80000
 FS = 44100
 MHZ = 240
@@ -82,7 +82,7 @@ def main():
         del args[i:i + 2]
     chips = [int(a) for a in args] or [1, 2, 3, 4]
     if not EMU.exists():
-        sys.exit(f"no emulator at {EMU}: cargo build --release -p fm1-emu in ../fm-1")
+        sys.exit(f"no emulator at {EMU}: cargo build --release -p fm1-emu in the repository root")
     print(f"SID bench on the emulated FM-1 (pi32v2, {opt}), {FS} Hz, {MHZ} MHz:")
     print(" chips voices  instr/sample  % of a core  init (instr)  hash      = host")
     for c in chips:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The SID player as an FM-1 update package (.fwsc), installable the way community firmwares
-are and bootable by ../fm-1's emulator page:
+are and bootable by the emulator's page (../web):
     tools/fwsc.py [OUT.fwsc]       (default web/sidplayer.fwsc)
 The app is build/fw/sidplayer.bin (firmware/build.sh: the firmware with an empty tune pack, so
 it plays its own tune and has the synth mode). The package is Felucca's: its update loader

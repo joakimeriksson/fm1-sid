@@ -1,7 +1,7 @@
 # fm1-sid — a SID synth for the M-VAVE FM-1?
 
 A feasibility study, with a working prototype: can the **M-VAVE FM-1** pocket synth
-(JieLi AC791N, pi32v2 CPU at 240 MHz, see [`../fm-1`](../fm-1)) be turned into a synth built
+(JieLi AC791N, pi32v2 CPU at 240 MHz, see [the emulator](..)) be turned into a synth built
 on the **MOS 6581 / 8580 SID**, the Commodore 64's sound chip?
 
 ## Summary (svenska)
@@ -86,7 +86,7 @@ ones (they and their renders stay in `build/`, not in the repo) and renders each
 and the log-spectra correlate ~0.8 with our reSIDfp replay; the rest is engine settings
 (filter curve) and where in the frame the player runs.
 
-### Emulator fixes found on the way (`../fm-1`, PR #31)
+### Emulator fixes found on the way (ai-smarthome PR #31)
 
 reSID's `double` setup came out wrong on the emulator; tracing it found four gaps in
 `fm1-core`: no arithmetic flags (64-bit add lost its carry, 64-bit subtract always
@@ -162,7 +162,7 @@ chip drawn on the LCD.
   loader (built here) and `tools/fm1pkg_make.py`, with three Apache-2.0 files of JieLi's AC79
   SDK (`tools/fetch_ext.sh` fetches them into `ext/ac79sdk` and checks Felucca's hashes; the
   page ships `web/LICENSES/Apache-2.0.txt`). The app is the image with an empty pack: its own
-  tune and the synth. `../fm-1/web/fwsc.js` unpacks exactly that app from it, and the
+  tune and the synth. `../web/fwsc.js` unpacks exactly that app from it, and the
   emulator boots it like the community packages. Not tried on a real FM-1 yet.
 
 ```sh
@@ -170,15 +170,15 @@ tools/fetch_ext.sh                            # engines, m6502.h, Felucca
 firmware/build.sh                             # build/fw/sidplayer*.bin, web/sidplayer.bin
 tools/fwsc.py                                 # web/sidplayer.fwsc, the update package
 tools/sidpack.py build/fw/my_xip.bin --xip --first 1 A.sid B.sid:3   # a firmware with tunes
-../fm-1/target/release/fm1-emu --bin build/fw/my_xip.bin --entry 0x02000120 \
+../target/release/fm1-emu --bin build/fw/my_xip.bin --entry 0x02000120 \
     --ms 3000 --wav build/fw/out.wav --keys "t:PRESET:+1,t:EDIT" --snap 2500  # LCD -> work/
-tools/webpage.sh [../fm-1]                    # the web page with the emulator -> build/pages
+tools/webpage.sh [..]                    # the web page with the emulator -> build/pages
 ```
 
 ## The web page (`web/`, GitHub Pages)
 
 `web/` is the player as a page: the FM-1's front panel (the emulator's own drawing code, as on
-`../fm-1/web`), the emulated machine in an AudioWorklet booting `sidplayer.bin` plus a tune
+`../web`), the emulated machine in an AudioWorklet booting `sidplayer.bin` plus a tune
 pack the page builds from its playlist, and around it a player:
 
 - **Playlist**: picks chosen for sync, ring modulation and filter work (`web/tunes.json`, from
@@ -197,7 +197,7 @@ pack the page builds from its playlist, and around it a player:
 - The page mirrors the firmware's state from the keys it sends (tune, engine, chip, pause), so
   its buttons and the panel's knobs stay in step; it moves to the next tune at the end of the
   HVSC song length. The address follows the tune: `?t=MUSICIANS/H/Hubbard_Rob/Sanxion.sid&s=2`.
-- `scripts/build-pages.mjs` (entry `fm1-sid`) puts the page and the fm-1 build's
+- `../tools/build_site.sh` puts the page and the emulator build's
   `fm1_web.wasm` together; `.github/workflows/pages.yml` runs `web/smoke.mjs` on the result:
   the wasm must boot the firmware with a pack of the own tune (no network) to sound and a
   screen, and in the synth mode stay silent until a key goes down, then sound. With an fm1-core that lacks PR #31 this check fails (the CPU halts), so merge PR #31
@@ -211,7 +211,7 @@ pack the page builds from its playlist, and around it a player:
 `fm1/run.py` builds the bench (`fm1/bench.c` + `fm1/workload.h`: a held chord on every
 voice, SAW LEAD patch with the filter and vibrato, a chord change halfway, rendered in
 128-sample blocks like Felucca's I2S half buffers) with the JieLi clang for pi32v2, runs it
-in `../fm-1`'s emulator, counts the instructions between two markers and compares the
+in the emulator, counts the instructions between two markers and compares the
 output with the host build:
 
 | SID chips | voices | instr / sample (-O2) | of a 240 MHz core | -Os (Felucca's flag) | output = host |
@@ -265,23 +265,23 @@ tools/fwsc.py             the firmware as an FM-1 update package (web/sidplayer.
 tools/housetune.py        the firmware's own tune, Pocket Sync (PSID)
 web/                      the player page (GitHub Pages): panel, playlist, HVSC search, files
 tools/picks.py            web/tunes.json: the picks with HVSC lengths and measured tags
-tools/webpage.sh          the page with ../fm-1's wasm in build/pages, for a local look
+tools/webpage.sh          the page with the emulator's wasm in build/pages, for a local look
 ```
 
 ```sh
 make test                 # self tests
 make wav                  # build/patch_*.wav (every patch, 8580) and build/song_{6581,8580}.wav
 make bench                # host timing
-fm1/run.py [chips...]     # the FM-1 measurement (needs the toolchain and ../fm-1's emulator)
+fm1/run.py [chips...]     # the FM-1 measurement (needs the toolchain and the emulator)
 tools/fetch_ext.sh && make build/sid_record build/sid_replay && tools/compare.sh && tools/listen.py
 fm1/run_resid.py [0 1 2]  # reSID 0.16 fast / interpolate / resample on the FM-1 (after compare.sh)
 ```
 
-`fm1/run.py` needs `../fm-1/target/release/fm1-emu` (`cargo build --release -p fm1-emu` in
-`../fm-1`) and the JieLi Linux toolchain, which runs natively on Linux x86-64
-(`../fm-1/docs/recon.md` has the URL; `JIELI_TOOLCHAIN` points at it, the default is
-`../fm-1/reference/toolchain/jieli-linux-toolchains-*`). On macOS run the toolchain through
-Docker as `../fm-1/tools/probe_build.sh` does.
+`fm1/run.py` needs `../target/release/fm1-emu` (`cargo build --release -p fm1-emu` in the
+repository root) and the JieLi Linux toolchain, which runs natively on Linux x86-64
+(`../docs/recon.md` has the URL; `JIELI_TOOLCHAIN` points at it, the default is
+`../reference/toolchain/jieli-linux-toolchains-*`). On macOS run the toolchain through
+Docker as `../tools/probe_build.sh` does.
 
 ### The chip model (`src/sid.c`)
 
@@ -329,7 +329,7 @@ chords, sync lead, drums) on both chip models.
 
 ## The FM-1 as a SID synth
 
-What the hardware gives (from `../fm-1/docs/recon.md` and Felucca's HAL):
+What the hardware gives (from `../docs/recon.md` and Felucca's HAL):
 
 | | |
 |---|---|
@@ -355,7 +355,7 @@ Felucca-style firmwares (Melodee and X0X hand audio to it), which could run more
 
 **A. A SID engine in Felucca (recommended first step).** Felucca
 (`hugelton/Felucca`, GPL-3.0) already has the UI, presets, the sequencer, USB / TRS MIDI,
-flash storage, the update package and a browser emulator, and it runs in `../fm-1`'s
+flash storage, the update package and a browser emulator, and it runs in the emulator's
 emulator. Its engines are plug-ins (`engine_t` in `firmware/src/core.h`): `note_on`,
 `render`, `block` (once per block — the place for the 50 Hz driver tick), `ownenv` + `done`
 (the engine's own envelope is the amplitude: the SID ADSR), 8 EDIT parameters and a part

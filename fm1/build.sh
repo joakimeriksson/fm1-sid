@@ -1,14 +1,14 @@
 #!/bin/sh
 # Build the SID bench (fm1/bench.c) for the FM-1's pi32v2 CPU with the JieLi toolchain:
 #   fm1/build.sh [chips] [opt]     -> build/bench_<chips>.bin (flat, +0x120 pad for fm1-emu --bin)
-# JIELI_TOOLCHAIN: the toolchain root (default: ../fm-1/reference/toolchain/jieli-linux-toolchains-*,
-# which ../fm-1/docs/recon.md says how to fetch). Linux x86-64 runs it natively.
+# JIELI_TOOLCHAIN: the toolchain root (default: ../reference/toolchain/jieli-linux-toolchains-*,
+# which ../docs/recon.md says how to fetch). Linux x86-64 runs it natively.
 # SPDX-License-Identifier: BSD-2-Clause
 set -eu
 cd "$(dirname "$0")/.."
 CHIPS="${1:-1}"
 OPT="${2:--O2}"
-TC="${JIELI_TOOLCHAIN:-$(ls -d ../fm-1/reference/toolchain/jieli-linux-toolchains-* 2>/dev/null | tail -1)}"
+TC="${JIELI_TOOLCHAIN:-$(ls -d ../reference/toolchain/jieli-linux-toolchains-* 2>/dev/null | tail -1)}"
 [ -x "$TC/pi32v2/bin/clang" ] || { echo "build.sh: no JieLi toolchain (set JIELI_TOOLCHAIN)"; exit 1; }
 CC="$TC/pi32v2/bin/clang -target pi32v2"
 O=build/fm1_$CHIPS

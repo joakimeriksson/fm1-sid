@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """reSID 0.16 on the emulated FM-1: fm1/run_resid.py [method ...]  (0 fast, 1 interpolate, 2 resample)
 
-Builds fm1/bench_resid.cc per method, runs it in ../fm-1's fm1-emu, reports instructions per
+Builds fm1/bench_resid.cc per method, runs it in the emulator's fm1-emu, reports instructions per
 sample, the heap, and how far the samples are from the host's reSID (build/sid_replay on the
 same register log; floating-point init on the device can differ in the last bits).
 SPDX-License-Identifier: BSD-2-Clause"""

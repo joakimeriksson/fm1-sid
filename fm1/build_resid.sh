@@ -6,7 +6,7 @@ set -eu
 cd "$(dirname "$0")/.."
 M="${1:-0}"
 OPT="${2:--O2}"
-TC="${JIELI_TOOLCHAIN:-$(ls -d ../fm-1/reference/toolchain/jieli-linux-toolchains-* 2>/dev/null | tail -1)}"
+TC="${JIELI_TOOLCHAIN:-$(ls -d ../reference/toolchain/jieli-linux-toolchains-* 2>/dev/null | tail -1)}"
 O=build/fm1_resid_$M
 mkdir -p "$O"
 python3 fm1/sidlog2h.py build/cmp/workload.sidlog "$O/wl_log.h"

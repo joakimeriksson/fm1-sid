@@ -1,5 +1,5 @@
 // FM-1 SID: the page. The M-VAVE FM-1's front panel (drawn by the emulator's own Rust code in
-// a wasm instance of its own, as on ../fm-1/web), the emulated machine in an AudioWorklet
+// a wasm instance of its own, as on ../web), the emulated machine in an AudioWorklet
 // running the SID player firmware (../firmware), and around it a player: the picks, all of
 // HVSC to search (its index and the tunes are fetched from hvsc.c64.org when asked for; none
 // are hosted here), your own .sid files, and the firmware's state mirrored from the keys the

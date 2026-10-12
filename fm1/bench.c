@@ -1,5 +1,5 @@
 /* fm1/bench.c - the SID workload (workload.h) as a bare-metal pi32v2 program for the FM-1
- * emulator (../../fm-1): no RTOS, no HAL, just the CPU. bench_mark() brackets the timed
+ * emulator (../..): no RTOS, no HAL, just the CPU. bench_mark() brackets the timed
  * render (break on it with --break-pc: the step counts give instructions per sample); the
  * results land in RAM for --dump:
  *   RES[0] magic "SIDB", RES[1] hash, RES[2] samples, RES[3] chips, then the samples (int16 pairs)
