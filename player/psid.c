@@ -115,8 +115,8 @@ static void str32(char *d, const uint8_t *s)
 
 int psid_load(psid_t *p, const uint8_t *b, uint32_t n, psid_write_fn wr, void *user)
 {
-    uint16_t ver, off, flags = 0;
-    uint32_t len;
+    uint16_t ver, flags = 0;
+    uint32_t off, len;
     m6502_desc_t desc;
     if (n < 0x76 || memcmp(b, "PSID", 4))
         return -1;
@@ -129,6 +129,8 @@ int psid_load(psid_t *p, const uint8_t *b, uint32_t n, psid_write_fn wr, void *u
     p->rnd = 0x1234567u;
     ver = be16(b + 4);
     off = be16(b + 6);
+    if (off < 0x76 || off > n)              /* the data inside the file, after the header (#63) */
+        return -1;
     p->info.load = be16(b + 8);
     p->info.init = be16(b + 10);
     p->info.play = be16(b + 12);
@@ -142,6 +144,8 @@ int psid_load(psid_t *p, const uint8_t *b, uint32_t n, psid_write_fn wr, void *u
         flags = be16(b + 0x76);
     p->info.model = ((flags >> 4) & 3) == 2 ? 1 : 0;
     if (!p->info.load) {
+        if (n - off < 2)
+            return -1;
         p->info.load = (uint16_t)(b[off] | b[off + 1] << 8);
         off += 2;
     }
