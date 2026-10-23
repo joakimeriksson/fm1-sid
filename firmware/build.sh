@@ -3,6 +3,9 @@
 #   firmware/build.sh   -> build/fw/sidplayer.bin (app.bin for XIP 0x02000120)
 #                          build/fw/sidplayer_xip.bin (+0x120 pad, for fm1-emu --bin)
 #                          build/fw/sidplayer_base.bin (no tune pack: the web page appends one)
+#   HARBOR_BOOT=1 firmware/build.sh -> build/fw_boot/sidplayer_base.bin: the same for fm1-harbor's boot
+#                          slot (flash 0x15000..0x93000, XIP 0x02011000); tools/sidpack.py --boot adds the
+#                          tunes, fm1-harbor's tools/hbboot.py make ... --no-data makes the .hrbr
 # Needs ext/ (tools/fetch_ext.sh: reSID 0.16, chips/m6502.h, Felucca's hal). The tunes come
 # after the image as a tune pack (tools/sidpack.py); without one it plays its own tune.
 # SPDX-License-Identifier: GPL-3.0-only
@@ -10,9 +13,20 @@ set -eu
 cd "$(dirname "$0")/.."
 TC="${JIELI_TOOLCHAIN:-$(ls -d ../reference/toolchain/jieli-linux-toolchains-* 2>/dev/null | tail -1)}"
 O=build/fw
+BASE=0x02000120                            # where the image runs (XIP), and the room it has
+SLOT=0x8DFBC
+LD=firmware/app.ld
+if [ "${HARBOR_BOOT:-0}" = 1 ]; then
+    O=build/fw_boot
+    BASE=0x02011000
+    SLOT=0x7E000
+    LD=$O/app.ld
+fi
 F=ext/Felucca/firmware
 L="$TC/pi32v2/lib/r3"
 mkdir -p "$O"
+[ "$LD" = firmware/app.ld ] || sed "s/ORIGIN = 0x02000120, LENGTH = 0x8DFBC/ORIGIN = $BASE, LENGTH = $SLOT/" firmware/app.ld > "$LD"
+grep -q "ORIGIN = $BASE, LENGTH = $SLOT" "$LD"
 python3 firmware/gen_assets.py "$O/assets.h"
 CC="$TC/pi32v2/bin/clang -target pi32v2 -mcpu=r3 -mfprev1 -ffp-contract=off"
 CXX="$TC/pi32v2/bin/clang++ -target pi32v2 -mcpu=r3 -mfprev1 -ffp-contract=off"
@@ -31,31 +45,32 @@ for f in sid voice wave envelope filter extfilt pot wave6581_PST wave6581_PS_ wa
     OBJS="$OBJS $O/$f.o"
 done
 $CXX $CF -fno-exceptions -fno-rtti -Iext/resid-0.16 -c firmware/resid_glue.cc -o $O/resid_glue.o
-"$TC/pi32v2/bin/ld" --gc-sections -T firmware/app.ld -e _start $OBJS $O/resid_glue.o \
+"$TC/pi32v2/bin/ld" --gc-sections -T "$LD" -e _start $OBJS $O/resid_glue.o \
     --start-group "$L/libm.a" "$L/libc.a" "$L/libcompiler_rt.a" --end-group -o $O/sidplayer.elf
 "$TC/common/bin/objcopy" -O binary -j .text $O/sidplayer.elf $O/text.bin
 "$TC/common/bin/objcopy" -O binary -j .data $O/sidplayer.elf $O/data.bin
 "$TC/common/bin/objdump" -d $O/sidplayer.elf > $O/sidplayer.dis
 "$TC/pi32v2/bin/nm" $O/sidplayer.elf > $O/sidplayer.nm 2>/dev/null || "$TC/common/bin/nm" $O/sidplayer.elf > $O/sidplayer.nm
-python3 - "$O" <<'PY'
+python3 - "$O" "$BASE" "$SLOT" <<'PY'
 import sys, re
-o = sys.argv[1]
+o, base, slot = sys.argv[1], int(sys.argv[2], 16), int(sys.argv[3], 16)
 nm = {l.split()[-1]: int(l.split()[0], 16) for l in open(f"{o}/sidplayer.nm") if len(l.split()) == 3}
 text, data = open(f"{o}/text.bin", "rb").read(), open(f"{o}/data.bin", "rb").read()
-gap = nm["_data_load"] - 0x02000120 - len(text)
+gap = nm["_data_load"] - base - len(text)
 img = text + b"\xff" * gap + data
 img += b"\xff" * (-len(img) % 4)
-assert nm["_start"] == 0x02000120, hex(nm["_start"])
+assert nm["_start"] == base, hex(nm["_start"])
 assert img[:4] == bytes([0x04, 0x81, 0x80, 0x00]), img[:4].hex()
-assert len(img) == nm["_pack"] - 0x02000120, (len(img), hex(nm["_pack"]))
-assert len(img) <= 0x8DFBC, f"image {len(img)} > app slot"
+assert len(img) == nm["_pack"] - base, (len(img), hex(nm["_pack"]))
+assert len(img) <= slot, f"image {len(img)} > its slot ({slot})"
 open(f"{o}/sidplayer_base.bin", "wb").write(img)
 img += b"SIDPACK1" + bytes(8)              # an empty pack: the firmware's own tune
 open(f"{o}/sidplayer.bin", "wb").write(img)
 open(f"{o}/sidplayer_xip.bin", "wb").write(b"\0" * 0x120 + img)
 ram = nm["_bss_end"] - 0x01C08000
-print(f"{o}/sidplayer.bin: {len(img)} bytes of the 581564 app slot; RAM {ram} of 442368 bytes")
+print(f"{o}/sidplayer.bin: {len(img)} bytes of the {slot} slot at {base:#010x}; RAM {ram} of 442368 bytes")
 PY
+[ "$O" = build/fw ] || exit 0
 # the web page (web/) boots the firmware without a pack and serves the own tune as a file
 cp "$O/sidplayer_base.bin" web/sidplayer.bin
 cp "$O/house.sid" web/house.sid

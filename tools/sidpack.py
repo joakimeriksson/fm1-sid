@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """A firmware image with a tune pack (firmware/main.c reads it at the image's end):
-    tools/sidpack.py OUT.bin [--xip] [--first N] [--own] [--chip 6581|8580] TUNE.sid[:SONG] ...
+    tools/sidpack.py OUT.bin [--xip | --boot] [--first N] [--own] [--chip 6581|8580] TUNE.sid[:SONG] ...
 from build/fw/sidplayer_base.bin (firmware/build.sh). --xip prefixes the 0x120 bytes that
-fm1-emu --bin and the web emulator's raw boot expect; --first picks the entry it starts on,
+fm1-emu --bin and the web emulator's raw boot expect; --boot takes build/fw_boot's instead
+(HARBOR_BOOT=1 firmware/build.sh), for fm1-harbor's boot slot (its tools/hbboot.py make OUT.bin
+--name FM1SID --no-data makes the .hrbr); --first picks the entry it starts on,
 --own starts on fm1-sid's model instead of reSID, --chip sets the chip for every tune.
 Song 0 (the default) is the tune's own start song. The web page builds the same pack in
 JavaScript (web/sid.js).
@@ -76,14 +78,19 @@ def main():
     ap.add_argument("out")
     tune_args(ap)
     ap.add_argument("--xip", action="store_true")
+    ap.add_argument("--boot", action="store_true", help="for fm1-harbor's boot slot (build/fw_boot)")
     a = ap.parse_args()
+    if a.xip and a.boot:
+        raise SystemExit("--xip or --boot, not both")
     tunes = tunes_of(a.tunes)
     if not 0 <= a.first < len(tunes):
         raise SystemExit(f"--first {a.first}: there are {len(tunes)} entries")
-    img = (ROOT / "build" / "fw" / "sidplayer_base.bin").read_bytes() + pack(tunes, a.first, flags_of(a))
-    assert len(img) <= 0x8DFBC, f"{len(img)} bytes: more than the app slot"
+    fw, slot = ("fw_boot", 0x7E000) if a.boot else ("fw", 0x8DFBC)
+    img = (ROOT / "build" / fw / "sidplayer_base.bin").read_bytes() + pack(tunes, a.first, flags_of(a))
+    if len(img) > slot:
+        raise SystemExit(f"{len(img)} bytes: more than the slot ({slot}); fewer or shorter tunes")
     Path(a.out).write_bytes((b"\0" * 0x120 if a.xip else b"") + img)
-    print(f"{a.out}: {len(tunes)} entries, {len(img)} bytes")
+    print(f"{a.out}: {len(tunes)} entries, {len(img)} bytes of {slot}")
 
 
 if __name__ == "__main__":

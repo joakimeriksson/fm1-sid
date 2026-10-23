@@ -184,6 +184,13 @@ chip drawn on the LCD.
   firmware has no way to take tunes while it runs, so a new set is a new package to install.
   Each file is checked the way the firmware's `psid_load` reads it (a PSID header, the data
   inside the file).
+- **In fm1-harbor's boot slot**: `HARBOR_BOOT=1 firmware/build.sh` builds the same firmware to
+  run from harbor's boot slot (flash 0x15000..0x93000, XIP 0x02011000: 504 KiB, about 298 KB of
+  it for tunes), `tools/sidpack.py --boot` adds the tunes, and harbor's
+  `tools/hbboot.py make OUT.bin --name FM1SID --no-data` makes the boot file. It writes no flash,
+  so harbor's deployed modules (CS-1, Scintilla, ...) stay beside it; power-on starts whichever
+  was picked last, and HOME held at power-on is always harbor, with its USB. Tested in fm1-emu
+  with harbor's `tests/trio_test.py`.
 - **On real FM-1s**: people have installed it and it starts and plays (issues #22, #24). While
   it runs, a computer does not see the FM-1 over USB, so an installer cannot reach it: hold
   OCT− and OCT+ for 3 s first (the USB update mode). Those who installed it before that was
@@ -195,6 +202,7 @@ tools/fetch_ext.sh                            # engines, m6502.h, Felucca
 firmware/build.sh                             # build/fw/sidplayer*.bin, web/sidplayer.bin
 tools/fwsc.py                                 # web/sidplayer.fwsc, the update package
 tools/fwsc.py my.fwsc A.sid B.sid:3           # the update package with your tunes
+HARBOR_BOOT=1 firmware/build.sh && tools/sidpack.py my_boot.bin --boot A.sid B.sid:3   # for fm1-harbor
 tools/sidpack.py build/fw/my_xip.bin --xip --first 1 A.sid B.sid:3   # a firmware with tunes
 ../target/release/fm1-emu --bin build/fw/my_xip.bin --entry 0x02000120 \
     --ms 3000 --wav build/fw/out.wav --keys "t:PRESET:+1,t:EDIT" --snap 2500  # LCD -> work/
