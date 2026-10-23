@@ -177,12 +177,24 @@ chip drawn on the LCD.
   SDK (`tools/fetch_ext.sh` fetches them into `ext/ac79sdk` and checks Felucca's hashes; the
   page ships `web/LICENSES/Apache-2.0.txt`). The app is the image with a pack of its own tune that starts it in the synth mode (silent
   until a key is played; HOME switches to the player). `../web/fwsc.js` unpacks exactly that app from it, and the
-  emulator boots it like the community packages. Not tried on a real FM-1 yet.
+  emulator boots it like the community packages.
+- **Your own tunes on an FM-1**: `tools/fwsc.py OUT.fwsc A.sid B.sid:3 ...` makes the package
+  with those tunes instead (same options as `sidpack.py`, plus `--synth` to start in the synth
+  mode). They live in the firmware's flash, after the image: up to about 360 KB of them. The
+  firmware has no way to take tunes while it runs, so a new set is a new package to install.
+  Each file is checked the way the firmware's `psid_load` reads it (a PSID header, the data
+  inside the file).
+- **On real FM-1s**: people have installed it and it starts and plays (issues #22, #24). While
+  it runs, a computer does not see the FM-1 over USB, so an installer cannot reach it: hold
+  OCT− and OCT+ for 3 s first (the USB update mode). Those who installed it before that was
+  said got back with M-flasher and OCT− + OCT+ held (#22). A boot that fails twice in a row
+  goes to the USB update mode by itself.
 
 ```sh
 tools/fetch_ext.sh                            # engines, m6502.h, Felucca
 firmware/build.sh                             # build/fw/sidplayer*.bin, web/sidplayer.bin
 tools/fwsc.py                                 # web/sidplayer.fwsc, the update package
+tools/fwsc.py my.fwsc A.sid B.sid:3           # the update package with your tunes
 tools/sidpack.py build/fw/my_xip.bin --xip --first 1 A.sid B.sid:3   # a firmware with tunes
 ../target/release/fm1-emu --bin build/fw/my_xip.bin --entry 0x02000120 \
     --ms 3000 --wav build/fw/out.wav --keys "t:PRESET:+1,t:EDIT" --snap 2500  # LCD -> work/
