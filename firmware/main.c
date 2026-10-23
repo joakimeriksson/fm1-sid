@@ -501,18 +501,46 @@ void fm1_timer5_irq(void)
     }
 }
 
+/* Core 1: this firmware never starts it, but the one before it may have (Jangada, X0X, Felucca's 2ND CORE ON),
+ * and not every reset stops it: a core 1 still running from before would execute whatever this firmware's
+ * startup writes into the RAM under it. So the boot holds it first, as Felucca 1.6.1's does (its hal/fm1_sys.h,
+ * fm1_cpu1_halt; the 1.5.1 hal built here has none): C1_CON bit 1 set, then bit 3 (enable) cleared; registers
+ * only, harmless when it never ran. The bus-invalid traps are off around the hold: cutting core 1's read off
+ * the bus raises an AXI read invalid a few instructions later */
+#define C1_CON (*(volatile uint32_t *)0x1EEE004u)
+#define DBG_WR_EN (*(volatile uint32_t *)0x1EEE240u)
+#define DBG_MSG_CLR (*(volatile uint32_t *)0x1EEE248u)
+#define DBG_EN (*(volatile uint32_t *)0x1EEE340u)
+#define DBG_BUS 0x003F0030u                 /* AXI rd/wr (4, 5), C0/C1 fetch/rd/wr (16..21) */
+static void cpu1_halt(void)
+{
+    uint32_t locked = !(DBG_WR_EN & 1u), en;
+    volatile uint32_t n;
+    if (locked)
+        DBG_WR_EN = 0xE7u;                  /* unlock */
+    en = DBG_EN;
+    DBG_EN = en & ~DBG_BUS;
+    __asm__ volatile("csync" ::: "memory");
+    C1_CON |= 0x2u;
+    C1_CON &= ~0x8u;
+    __asm__ volatile("csync" ::: "memory");
+    for (n = 0; n < 256u; n++)              /* the flag comes some instructions after the hold */
+        ;
+    DBG_MSG_CLR = DBG_BUS;
+    __asm__ volatile("csync" ::: "memory");
+    DBG_EN = en;
+    if (locked && (DBG_WR_EN & 1u))
+        DBG_WR_EN = 0xE7u;                  /* lock again */
+    __asm__ volatile("csync" ::: "memory");
+}
+
 /* the ISR wrappers (Felucca's hal/fm1_isr.S) */
 void isr_alnk0(void);
 void isr_timer5(void);
 
-static void fm1_fault(const fm1_crash_t *c)
-{
-    (void)c;
-    fm1_reboot();
-}
-
 /* ------------------------------------------------------------------------------ LCD --- */
 static uint16_t fb[240 * 240];
+static uint8_t lcd_up;                      /* lcd_init done: a crash can show itself */
 
 static void lcd_cmd(uint8_t c, const uint8_t *d, uint32_t n)
 {
@@ -544,6 +572,7 @@ static void lcd_init(void)
     lcd_cmd(0x13, 0, 0);
     fm1_lcd_baud(4);
     lcd_cmd(0x29, 0, 0);
+    lcd_up = 1;
 }
 
 static void lcd_frame(void)
@@ -617,6 +646,41 @@ static char *fmt_u(char *p, uint32_t v, int width)
 }
 
 static char *cat(char *p, const char *s) { while (*s) *p++ = *s++; *p = 0; return p; }
+
+/* ---------------------------------------------------------------- crashes and boot loops --- */
+/* A fault: the crash on the screen for 4 s, then a reset. A firmware that fails the same way at every boot
+ * would reset forever, and the update mode (OCT- + OCT+ held, in the main loop) would never come: the boot
+ * guard (as Felucca's) counts boots that die within their first 30 s, a crash or a hang (the watchdog), and
+ * the third such boot goes to the USB update mode instead, where an installer can put another firmware on. */
+static volatile struct { uint32_t magic, failed, pending; } bootguard __attribute__((section(".noinit")));
+#define BOOTGUARD_MAGIC 0x53494447u         /* "SIDG" */
+
+static void fm1_fault(const fm1_crash_t *c)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    uint32_t v[3] = {c->vec, c->pc, c->rets}, i, k, t0;
+    char b[16];
+    fm1_audio_stop();
+    if (lcd_up) {
+        fill(0, 0, 240, 240, C_BLUE);
+        text(48, 40, "FM-1 SID CRASH", C_WHITE);
+        for (i = 0; i < 3u; i++) {
+            b[0] = "VPR"[i];
+            b[1] = ' ';
+            for (k = 0; k < 8u; k++)
+                b[2 + k] = hex[(v[i] >> (28u - 4u * k)) & 15u];
+            b[10] = 0;
+            text(40, 80 + 20 * (int)i, b, C_LBLUE);
+        }
+        text(16, 160, "RESTARTING", C_WHITE);
+        text(16, 180, "IF IT REPEATS: USB UPDATE", C_GREY);
+        lcd_frame();
+    }
+    t0 = fm1_ticks();
+    while ((uint32_t)(fm1_ticks() - t0) < 4000u * 24000u)
+        fm1_wdt_feed();
+    fm1_reboot();
+}
 
 /* the note nearest a frequency register (PAL), e.g. "C#4"; "---" when 0 */
 static void note_name(uint32_t freq, char *out)
@@ -1069,6 +1133,8 @@ static void fm1_main(void)
         uint32_t rel, e, now;
         int32_t step;
         fm1_wdt_feed();
+        if (bootguard.pending && ms > 30000u)
+            bootguard.pending = bootguard.failed = 0;   /* 30 s up: this boot made it */
         generate();
         now = ms;
         if (running)
@@ -1109,6 +1175,7 @@ static void fm1_main(void)
             if (!hold) hold = now;
             else if (now - hold > 3000u) {
                 fm1_audio_stop();
+                bootguard.pending = 0;      /* (asked for: not a failed boot) */
                 fm1_enter_uboot();
             }
         } else {
@@ -1132,8 +1199,20 @@ void fm1_cstart(void)
     extern ctor_t __init_array_start[], __init_array_end[];
     uint32_t *w;
     ctor_t *c;
+    cpu1_halt();                            /* a core 1 left running by the firmware before */
     fm1_time_init();
     fm1_wdt_arm(0x0D);
+    if (bootguard.magic != BOOTGUARD_MAGIC) {
+        bootguard.magic = BOOTGUARD_MAGIC;
+        bootguard.failed = bootguard.pending = 0;
+    }
+    if (bootguard.pending)                  /* the last boot died within its first 30 s */
+        bootguard.failed++;
+    bootguard.pending = 1;
+    if (bootguard.failed >= 2u) {           /* the third in a row: the USB update mode instead */
+        bootguard.failed = bootguard.pending = 0;
+        fm1_enter_uboot();
+    }
     fm1_irq_init();
     for (w = _bss_start; w < _bss_end; w++)
         *w = 0;

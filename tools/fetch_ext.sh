@@ -29,7 +29,13 @@ fi
 # the 6502 core for player/psid.c and the FM-1 startup / vector / ISR code for firmware/
 mkdir -p chips
 [ -f chips/m6502.h ] || curl -sSfL -o chips/m6502.h https://raw.githubusercontent.com/floooh/chips/master/chips/m6502.h
-[ -d Felucca ] || git clone -q --depth 1 https://github.com/hugelton/Felucca Felucca
+# Felucca at a fixed commit, 1.5.1: its startup code, hal and, for the package, the update loader that writes
+# the flash. web/sidplayer.bin rebuilds from it bit for bit; a newer Felucca no longer builds this firmware
+# (1.6.1's fm1_irq.h needs FM1_RESET_PREP). Moving on is a choice to make and test, not something a fresh
+# checkout picks up
+FELUCCA=a4d7ca2e5d52a4c35e2468401f00d883cadbda03
+[ -d Felucca ] || { git init -q Felucca && git -C Felucca fetch -q --depth 1 https://github.com/hugelton/Felucca "$FELUCCA"; }
+git -C Felucca checkout -q "$FELUCCA" || { echo "ext/Felucca: not at $FELUCCA (remove it and run again)"; exit 1; }
 # three files of JieLi's AC79 SDK (Apache-2.0) for the .fwsc package (tools/fwsc.py), checked
 # against the hashes Felucca's packages are made with
 SDK=https://gitee.com/Jieli-Tech/fw-AC79_AIoT_SDK/raw/AC79NN_SDK_V1.2.1_2023-12-13/cpu/wl82/tools
