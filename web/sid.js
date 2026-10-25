@@ -341,13 +341,22 @@ function midiNote(note, on) {
     midiKeys.delete(note);
   }
 }
+// one MIDI access for the page (with SysEx: "Play on my FM-1" needs it), shared by the keyboard and the
+// sender: a second access beside the first could leave Chrome's MIDI stuck on a Mac (2026-10-25)
+let midiAsked = null;
+function midiAccess() {
+  if (!midiAsked) midiAsked = navigator.requestMIDIAccess({ sysex: true }).catch((err) => { midiAsked = null; throw err; });
+  return midiAsked;
+}
+
 async function connectMidi() {
   const b = $("midi");
   if (!navigator.requestMIDIAccess) { toast("This browser has no Web MIDI (Chrome, Edge and Firefox do)."); return; }
+  $("midi-state").textContent = "asking Chrome for MIDI…";
   try {
-    midi = await navigator.requestMIDIAccess();
+    midi = await midiAccess();
   } catch (err) {
-    toast(`MIDI: ${err.message}`);
+    $("midi-state").textContent = `MIDI: ${err.message}`;
     return;
   }
   // every input but an FM-1's (its USB port carries the answers to "Play on my FM-1", whose handler
@@ -358,15 +367,30 @@ async function connectMidi() {
     if (t === 0x90 && v) midiNote(n, true);
     else if (t === 0x80 || t === 0x90) midiNote(n, false);
   };
+  // the picker: all of them, or the one chosen (remembered); opened explicitly, as Chrome may not
+  // deliver to a handler on a port it has not opened
+  const pick = $("midi-in");
   const hook = () => {
-    const names = [];
+    const names = [...midi.inputs.values()].map((i) => i.name).filter((n) => !isFm1Port(n));
+    const want = stored("fm1sid.midiIn") || "";
+    pick.replaceChildren(el("option", null, "All keyboards"), ...names.map((n) => el("option", null, n)));
+    pick.options[0].value = "";
+    pick.value = names.includes(want) ? want : "";
+    pick.hidden = names.length < 2;
+    const heard = [];
     for (const input of midi.inputs.values()) {
       if (isFm1Port(input.name)) continue;
-      names.push(input.name);
+      if (pick.value && input.name !== pick.value) {
+        input.onmidimessage = null;
+        continue;
+      }
+      heard.push(input.name);
       input.onmidimessage = onNote;
+      input.open().catch(() => {});
     }
-    $("midi-state").textContent = names.length ? `listening to ${names.join(", ")}` : "no MIDI input found: plug one in";
+    $("midi-state").textContent = heard.length ? `listening to ${heard.join(", ")}` : "no MIDI input found: plug one in";
   };
+  pick.onchange = () => { store("fm1sid.midiIn", pick.value); hook(); };
   midi.onstatechange = hook;
   hook();
   b.textContent = "MIDI connected";
@@ -557,7 +581,7 @@ async function sendToFm1() {
     if (!link) {
       // (Chrome asks once for MIDI with SysEx, apart from plain MIDI: until it is answered the request waits)
       sendState("asking Chrome for MIDI with SysEx…");
-      const asked = navigator.requestMIDIAccess({ sysex: true });
+      const asked = midiAccess();
       const nag = setTimeout(() => sendState("waiting for Chrome: allow MIDI (with SysEx) in the prompt at the address bar, or in this site's settings"), 2500);
       let access;
       try { access = await asked; } finally { clearTimeout(nag); }

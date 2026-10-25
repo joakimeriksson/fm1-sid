@@ -176,6 +176,7 @@
   .btn { border: 1px solid var(--line2); background: var(--card2); border-radius: 10px; padding: 0 14px; cursor: pointer; white-space: nowrap; }
   .btn:hover { background: #262738; }
   .btn:disabled { opacity: .5; cursor: default; }
+  .midi-in { height: 34px; max-width: 100%; border: 1px solid var(--line2); background: var(--card2); color: inherit; border-radius: 10px; padding: 0 10px; font: inherit; font-size: 13px; }
   .hint { color: var(--faint); font-size: 13px; margin: 2px 12px 10px; }
   .drop { display: grid; place-items: center; gap: 10px; text-align: center; margin: 10px; padding: 48px 20px; border: 1.5px dashed var(--line2);
           border-radius: 12px; color: var(--dim); cursor: pointer; }
@@ -363,6 +364,7 @@
       <div id="pane-synth" role="tabpanel" aria-labelledby="tab-synth" hidden>
         <div class="searchbar">
           <button class="btn" id="midi" type="button">Connect a MIDI keyboard</button>
+          <select id="midi-in" class="midi-in" aria-label="MIDI input" hidden></select>
           <span class="hint" id="midi-state">Web MIDI: Chrome, Edge, Firefox</span>
         </div>
         <p class="hint">fm1-sid’s own instrument driver, the way C64 music drivers play the chip: per-frame wave
