@@ -138,7 +138,7 @@
   .tags:empty { display: none; }
   .tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 7px;
          border-radius: 5px; border: 1px solid currentColor; line-height: 1.5; }
-  .tag.sync { color: var(--sync); } .tag.ring { color: var(--ring); } .tag.filter { color: var(--filter); } .tag.pwm { color: var(--pwm); }
+  .tag.sync { color: var(--sync); } .tag.ring { color: var(--ring); } .tag.filter { color: var(--filter); } .tag.pwm { color: var(--pwm); } .tag.digi { color: var(--c64-hi); }
 
   .library { padding: 8px; min-height: 520px; }
   [role=tablist] { display: flex; gap: 4px; padding: 6px; border-bottom: 1px solid var(--line); margin-bottom: 6px; overflow-x: auto; scrollbar-width: none; }
@@ -350,7 +350,7 @@
           <input id="search" type="search" placeholder="Search the High Voltage SID Collection…" autocomplete="off" spellcheck="false">
           <button class="btn" id="random" type="button">Surprise me</button>
         </div>
-        <p class="hint">The index and every tune come straight from <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener">hvsc.c64.org</a> when you ask for them. PSID tunes play; RSID tunes need a whole C64 and do not yet.</p>
+        <p class="hint">The index and every tune come straight from <a href="https://www.hvsc.c64.org/" target="_blank" rel="noopener">hvsc.c64.org</a> when you ask for them. PSID and RSID tunes play (RSID tunes run on a whole C64 around the 6502: both CIAs, the VIC’s raster, the KERNAL’s interrupt entries); the few RSID tunes written in C64 BASIC do not.</p>
         <ul class="list" id="results"></ul>
       </div>
       <div id="pane-synth" role="tabpanel" aria-labelledby="tab-synth" hidden>
@@ -371,11 +371,13 @@
       </div>
       <div id="pane-files" role="tabpanel" aria-labelledby="tab-files" hidden>
         <label class="drop">
-          <span>Drop <b>.sid</b> files anywhere on this page</span>
+          <span>Drop <b>.sid</b> files or GoatTracker 2 songs (<b>.sng</b>) anywhere on this page</span>
           <span class="btn">or choose files</span>
-          <input type="file" id="files" accept=".sid" multiple>
+          <input type="file" id="files" accept=".sid,.sng" multiple>
         </label>
-        <p class="hint">They join the playlist and stay in this tab: nothing is uploaded.</p>
+        <p class="hint">They join the playlist and stay in this tab: nothing is uploaded. A .sng plays by
+          GoatTracker’s own playroutine, from the file itself, as GoatTracker plays it at its default settings
+          (1x speed); its subtunes are its songs.</p>
       </div>
     </section>
   </section>
@@ -387,8 +389,8 @@
     <ol class="stack">
       <li style="--d:0"><b>Your browser<small>AudioWorklet</small></b><span>Asks for 128 frames at a time. The emulator runs until the FM-1’s I2S DMA has produced them, so the sound card is the clock.</span></li>
       <li style="--d:1"><b>fm1-core<small>Rust → WebAssembly</small></b><span>The JieLi AC791N’s pi32v2 CPU with its interrupts, timers, I2S, the SPI screen and the key matrix, worked out from the stock firmware. Idle time is skipped, not emulated.</span></li>
-      <li style="--d:2"><b>The player firmware<small>C · 205 KB</small></b><span>Runs on Felucca’s hardware layer. The tunes ride after it in flash as a tune pack, which this page builds from your playlist and boots.</span></li>
-      <li style="--d:3"><b>A 6502<small>floooh’s m6502</small></b><span>Each tune’s own init and play routines, cycle by cycle, in 64 KB of C64 memory with the I/O banking, the CIA timer and the raster line.</span></li>
+      <li style="--d:2"><b>The firmware<small>C · fm1-dock + FM-1 SID</small></b><span>FM-1 SID runs as the one synth of <a href="https://github.com/joakimeriksson/fm1-dock">fm1-dock</a>, which keeps USB, the installers and the rescue. The tunes ride after it in flash as a tune pack, which this page builds from your playlist and boots.</span></li>
+      <li style="--d:3"><b>A 6510<small>an instruction at a time</small></b><span>Each tune’s own init and play routines, every memory access at its exact cycle, in 64 KB of C64 memory with the I/O banking, the CIA timer and the raster line.</span></li>
       <li style="--d:4"><b>SID writes<small>cycle-stamped</small></b><span>The main loop runs the tune up to three frames ahead and queues every register write with the C64 cycle it happened on.</span></li>
       <li style="--d:5"><b>reSID 0.16<small>Dag Lem</small></b><span>Clocked to each write’s cycle inside the audio interrupt, with measured 6581 and 8580 waveforms and filters. Or fm1-sid’s own integer model, at about 70 % of the cost.</span></li>
       <li style="--d:6"><b>Effects<small>after Felucca’s</small></b><span>A stereo chorus, a delay on the tempo and a room reverb after the chip, in the same interrupt: the mono SID gets width. The synth starts with a little of each; the player stays dry until you turn them up.</span></li>
@@ -396,11 +398,12 @@
     <div class="facts">
       <div><b>9.5 %</b><span>of the 240 MHz core goes to the audio interrupt with reSID, 14 % with the effects</span></div>
       <div><b>0.984</b><span>correlation with reSID on a PC, fed the same register stream</span></div>
-      <div><b>205 KB</b><span>of firmware: player, synth, two SID engines, the effects, the screen and its own tune</span></div>
+      <div><b>260 KB</b><span>of firmware: fm1-dock, the player, the GoatTracker editor, the synth, two SID engines and the effects</span></div>
       <div><b id="facts-n">61,157</b><span>tunes in HVSC, one search away</span></div>
     </div>
-    <p class="note">The numbers come from the emulator, which counts instructions, not cycles: a real FM-1
-      has not run this firmware yet. The status line under the synth shows how fast your machine runs it.</p>
+    <p class="note">The numbers come from the emulator, which counts instructions, not cycles. FM-1 SID has
+      played on a real FM-1 as an fm1-dock module (Arkanoid at full speed). The status line under the synth shows how
+      fast your machine runs it.</p>
   </section>
 
   <section class="ctl" id="controls">
@@ -414,25 +417,29 @@
         <b>KNOB3</b> its time (1/16 to 1/4 of the tempo), <b>KNOB4</b> the reverb, <b>SELECT</b> the delay’s feedback and <b>PRESETS</b> 6581 or 8580;
         <b>FX</b> again goes back. The synth starts with a little of each, the player dry.</p></div>
       <div><h3>Keyboard</h3><p><kbd>A</kbd> <kbd>W</kbd> <kbd>S</kbd> … <kbd>'</kbd>: the note keys · <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> or <kbd>N</kbd> <kbd>P</kbd>: tune or instrument · <kbd>7</kbd>: HOME · <kbd>Space</kbd>: PLAY · <kbd>0</kbd>: SEQ · <kbd>R</kbd>: REC · <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>: tracks · <kbd>,</kbd> <kbd>.</kbd>: tempo · <kbd>5</kbd>: EDIT · <kbd>1</kbd>: FX · <kbd>Z</kbd> <kbd>X</kbd>: OCT− / OCT+</p></div>
+      <div><h3>fm1-dock</h3><p><b>HOME</b> held 1.5 s: fm1-dock’s list (FM-1 SID and the sine). <b>OCT−</b> held while switching on:
+        the USB rescue, only the updater running.</p></div>
       <div><h3>Links</h3><p>The address bar follows the tune: copy it to send someone straight to it. <code>?t=</code> takes any HVSC path, <code>?mode=synth</code> starts on the synth.</p></div>
     </div>
       <p class="note"><b>On a real FM-1</b>: <a href="sidplayer.fwsc" download>sidplayer.fwsc</a> is this firmware as an
-      update package (it starts as the synth, with the effects; HOME switches to the player and its own tune; no HVSC tunes), made with Felucca’s update loader and
-      package tools, so it installs the way the community firmwares do. People have installed it and it plays; install it
-      at your own risk. <b>While it runs, a computer does not see the FM-1 over USB</b>: to put another firmware on,
-      hold OCT− and OCT+ for 3 s first (the USB update mode), then run the installer. If it fails to start twice in a
-      row, the third start goes to the USB update mode by itself. For a package with your own .sid tunes, see
-      <code>tools/fwsc.py</code> in the repository. The
-      package carries three files of JieLi’s SDK under the <a href="LICENSES/Apache-2.0.txt">Apache-2.0 licence</a>.</p>
+      update package: fm1-dock with FM-1 SID as its synth, starting in the player with GoatTracker 2’s example songs, Dojo
+      first (no HVSC tunes). It installs the way the community firmwares do, and <b>the installers reach it while it runs</b>
+      (fm1-dock’s USB), so going back to any other firmware is an ordinary install; <b>OCT−</b> held while switching on is
+      the USB rescue. Install it at your own risk. For a package with your own .sid tunes and .sng songs:
+      <code>dock/build_solo.sh</code> in <a href="https://github.com/joakimeriksson/fm1-sid">the repository</a>. The package
+      carries three files of JieLi’s SDK under the <a href="LICENSES/Apache-2.0.txt">Apache-2.0 licence</a>.</p>
   </section>
 
   <footer>
     <p><b>Tunes</b>: the <a href="https://www.hvsc.c64.org/">High Voltage SID Collection</a>, each by its composer; fetched from hvsc.c64.org when you play them, none hosted here.
+      In the package: GoatTracker 2’s example songs by Cadaver, Jammer, Richard Bayliss, Hein, No-XS (after beek) and Randall.
       <b>Pocket Sync</b> is this project’s own.</p>
-    <p><b>Built on</b> reSID 0.16 by Dag Lem (GPL-2.0+), <a href="https://github.com/floooh/chips">m6502.h</a> by Andre Weissflog (zlib),
+    <p><b>Built on</b> reSID 0.16 by Dag Lem (GPL-2.0+), <a href="https://github.com/floooh/chips">m6502.h</a> by Andre Weissflog (zlib; the reference the 6510 is checked against),
+      <a href="https://sourceforge.net/projects/goattracker2/">GoatTracker 2</a>’s playroutine by Lasse Öörni (Cadaver) and contributors (GPL-2.0+),
+      <a href="https://github.com/joakimeriksson/fm1-dock">fm1-dock</a> on <a href="https://github.com/zvenson/dinghy">Dinghy</a> (zvenson),
       the <a href="https://github.com/hugelton/Felucca">Felucca</a> hardware layer and effects by Leo Kuroshita / Hügelton Instruments (GPL-3.0),
-      and this repository’s FM-1 emulator. The firmware and this page are GPL-3.0; the PSID player and the own SID model are BSD-2.</p>
-    <p>Not affiliated with M-VAVE or Commodore. <a href="https://github.com/joakimeriksson/fm1-emu/tree/master/fm1-sid">Source on GitHub</a> ·
+      and this repository’s FM-1 emulator. The firmware and this page are GPL-3.0; the PSID / RSID player and the own SID model are BSD-2, the GoatTracker player GPL-2.0+.</p>
+    <p>Not affiliated with M-VAVE or Commodore. <a href="https://github.com/joakimeriksson/fm1-sid">Source on GitHub</a> ·
       <a href="../">The FM-1 emulator with its other firmwares</a></p>
   </footer>
 </div>

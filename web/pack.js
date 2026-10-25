@@ -2,6 +2,7 @@
 // tools/sidpack.py): "SIDPACK1", u32 count, u32 start (bits 0-15 the first entry, bit 16 the
 // own model instead of reSID, bits 17-18 the chip: 0 the tune's, 1 6581, 2 8580), then per
 // entry u32 offset (from the pack), length, song (0: the tune's start song); little-endian.
+// An entry is a .sid (PSID / RSID) or a GoatTracker 2 song (.sng: song = its subtune, from 1).
 // SPDX-License-Identifier: BSD-2-Clause
 
 export const XIP_PAD = 0x120;          // the raw boot maps the image at 0x02000000 + 0x120
@@ -44,7 +45,8 @@ export function bootImage(base, pack) {
 const latin1 = new TextDecoder("latin1");
 const str = (b, o) => { const s = latin1.decode(b.subarray(o, o + 32)); const z = s.indexOf("\0"); return (z < 0 ? s : s.slice(0, z)).trim(); };
 
-// a .sid file's header: { kind: "PSID" | "RSID", title, author, released, songs, start, model }
+// a .sid file's header: { kind: "PSID" | "RSID", title, author, released, songs, start, model,
+// basic: an RSID tune in C64 BASIC (needs the BASIC ROM, which the player does not have) }
 export function sidInfo(b) {
   if (b.length < 0x76) return null;
   const kind = latin1.decode(b.subarray(0, 4));
@@ -52,5 +54,48 @@ export function sidInfo(b) {
   const be = (o) => (b[o] << 8) | b[o + 1];
   const flags = be(4) >= 2 && b.length >= 0x7c ? be(0x76) : 0;
   return { kind, title: str(b, 0x16), author: str(b, 0x36), released: str(b, 0x56),
-    songs: be(14), start: be(16), model: ((flags >> 4) & 3) === 2 ? "8580" : "6581" };
+    songs: be(14), start: be(16), model: ((flags >> 4) & 3) === 2 ? "8580" : "6581",
+    basic: kind === "RSID" && (flags & 2) !== 0 };
 }
+
+// a GoatTracker 2 song (.sng) as player/gt2.c's gt2_load reads it (tools/sidpack.py gt2_songs):
+// { kind: "GT2", title, author, released, songs (its subtunes), start: 1, model: "6581" }, or
+// { kind: "GT2", problem } for one it turns down; null when it is not a GoatTracker 2 song
+export function gt2Info(b) {
+  if (b.length < 4 || latin1.decode(b.subarray(0, 3)) !== "GTS" || b[3] < 0x33 || b[3] > 0x35) return null;
+  let pos = 100;
+  const byte = () => { if (pos >= b.length) throw new Error("cut short"); return b[pos++]; };
+  const skip = (n) => { if (n > b.length - pos) throw new Error("cut short"); pos += n; };
+  const why = (() => {
+    if (b.length < 101) return "cut short";
+    const subtunes = byte();
+    if (subtunes > 32) return `${subtunes} subtunes (GoatTracker has 32)`;
+    const empty = [];
+    for (let d = 0; d < subtunes; d++)
+      for (let c = 0; c < 3; c++) {
+        const n = byte() + 1;
+        skip(n);
+        empty.push(b[pos - n] === 0xff);
+      }
+    const ins = byte();
+    if (ins >= 64) return `${ins} instruments (GoatTracker has 63)`;
+    skip(25 * ins);
+    for (let t = 0; t < 4; t++) skip(2 * byte());
+    const patts = byte();
+    if (patts > 208) return `${patts} patterns (GoatTracker has 208)`;
+    for (let p = 0; p < patts; p++) {
+      const n = byte();
+      if (n > 129) return `a pattern of ${n - 1} rows (GoatTracker has 128)`;
+      skip(4 * n);
+    }
+    if (!subtunes || empty.slice(0, 3).includes(true)) return "no subtune, or the first one empty";
+    return subtunes;
+  });
+  let r;
+  try { r = why(); } catch (e) { r = e.message; }
+  if (typeof r === "string") return { kind: "GT2", problem: `a GoatTracker 2 song this does not play: ${r}` };
+  return { kind: "GT2", title: str(b, 4), author: str(b, 36), released: str(b, 68), songs: r, start: 1, model: "6581" };
+}
+
+// either kind: sidInfo or gt2Info
+export const tuneInfo = (b) => sidInfo(b) || gt2Info(b);

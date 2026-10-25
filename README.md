@@ -13,11 +13,13 @@ editor. The rest of this file is how it was built and measured.
 `../tools`). Clone fm1-emu with `--recurse-submodules` for all of it; the host tests (`make test`) and
 the fm1-dock module (`dock/build.sh`) build from this repository alone. Licences: [LICENSING.md](LICENSING.md).
 
-**On a real FM-1, run it as an [fm1-dock](https://github.com/joakimeriksson/fm1-dock) module.**
-fm1-dock owns USB, the installers and the rescue; FM-1 SID is deployed into it over USB (about
-10 s) and picked with HOME: PSID and RSID tunes, GoatTracker songs, the editor, songs saved in
-fm1-dock's flash banks, subtunes on ALGORITHM. It has played on a real FM-1 so (Arkanoid at full
-speed, 2026-10-24). The standalone package (below) has not played on one yet.
+**On a real FM-1 it runs on [fm1-dock](https://github.com/joakimeriksson/fm1-dock)**, which owns USB,
+the installers and the rescue: as FM-1 SID's own firmware (`web/sidplayer.fwsc`, `dock/build_solo.sh`:
+fm1-dock with FM-1 SID and the sine, starting in FM-1 SID), or as a module deployed into an fm1-dock
+with other synths (`dock/build.sh`). PSID and RSID tunes, GoatTracker songs, the editor, songs saved
+in fm1-dock's flash banks, subtunes on ALGORITHM. It has played on a real FM-1 as a module (Arkanoid at
+full speed, 2026-10-24). The standalone builds (Felucca's and Dinghy's) are not for a real FM-1: their
+USB replies never reach a computer.
 
 ## Summary
 
@@ -78,10 +80,8 @@ sequencer and effects.
 ### Try it without an FM-1
 
 - **In the browser**: [joakimeriksson.github.io/fm1-emu/fm1-sid](https://joakimeriksson.github.io/fm1-emu/fm1-sid/)
-  runs the whole FM-1 in the page. Pick a tune, search all of HVSC, or drop your own .sid files
-  on the page. The page runs the earlier player (PSID tunes); the RSID tunes, GoatTracker songs
-  and the editor come to it once the standalone build has played on a real FM-1. All of FM-1 SID
-  runs in fm1-dock in the browser too: [its page](https://joakimeriksson.github.io/fm1-dock/#emulator).
+  runs the whole FM-1 in the page, with FM-1 SID's own firmware (fm1-dock with FM-1 SID). Pick a
+  tune, search all of HVSC, or drop your own .sid files and GoatTracker .sng songs on the page.
 - **On a Mac with this repository**: build the emulator (`cargo build --release` in the
   repository's root) and open a package in its window:
 

@@ -5,7 +5,7 @@
 // are hosted here), your own .sid files, and the firmware's state mirrored from the keys the
 // page sends it.
 // SPDX-License-Identifier: GPL-3.0-only
-import { buildPack, bootImage, sidInfo } from "./pack.js";
+import { buildPack, bootImage, tuneInfo } from "./pack.js";
 
 const HVSC = "https://www.hvsc.c64.org/download/C64Music/";
 const MHZ = 240;                       // the FM-1's clock; idle time is skipped, not emulated
@@ -228,9 +228,10 @@ async function load(e) {
     bytesOf.set(e.src, new Uint8Array(await r.arrayBuffer()));
   }
   e.bytes = bytesOf.get(e.src);
-  e.info = sidInfo(e.bytes);
-  if (!e.info) throw new Error("not a .sid file");
-  if (e.info.kind === "RSID") throw new Error("an RSID tune: it needs a whole C64 (interrupts, VIC, both CIAs), which this player does not have yet");
+  e.info = tuneInfo(e.bytes);
+  if (!e.info) throw new Error("not a .sid or GoatTracker .sng file");
+  if (e.info.basic) throw new Error("an RSID tune in C64 BASIC: it needs the BASIC ROM, which this player does not have");
+  if (e.info.problem) throw new Error(e.info.problem);
   if (!e.title) Object.assign(e, { title: e.info.title, author: e.info.author, released: e.info.released, songs: e.info.songs });
   return e;
 }
@@ -241,22 +242,22 @@ async function boot(first) {
   status(`fetching ${list.filter((e) => !e.bytes && !e.failed).length || "the"} tunes from HVSC…`);
   await Promise.all(list.map((e) => e.bytes || e.failed ? null : load(e).catch((err) => { e.failed = err.message; })));
   if (seq !== bootSeq) return;
-  const want = list[first];
-  packed = list.filter((e) => e.bytes);
-  let image;
-  for (;;) {
-    try {
-      image = bootImage(base, buildPack(packed, 0, 0));
-      break;
-    } catch {                                        // too big: drop the oldest added tune
-      const i = packed.findIndex((e) => e.group !== "picks" && e !== want);
-      if (i < 0) throw new Error("the tunes do not fit");
-      list.splice(list.indexOf(packed[i]), 1);
-      packed.splice(i, 1);
-    }
+  // the firmware holds as many tunes as fit after it (fm1-dock's app slot, about 168 KB): a window of
+  // the playlist around the wanted tune, the ones after it first; past its end the page boots the next
+  const have = list.filter((e) => e.bytes);
+  const want = have.includes(list[first]) ? list[first] : have[0];
+  if (!want) throw new Error("no tune could be fetched");
+  const fits = (arr) => { try { bootImage(base, buildPack(arr, 0, 0)); return true; } catch { return false; } };
+  if (!fits([want])) throw new Error(`${want.title || "this tune"} does not fit in the FM-1's flash`);
+  let lo = have.indexOf(want), hi = lo;
+  for (let grew = true; grew;) {
+    grew = false;
+    if (hi + 1 < have.length && fits(have.slice(lo, hi + 2))) { hi++; grew = true; }
+    if (lo > 0 && fits(have.slice(lo - 1, hi + 1))) { lo--; grew = true; }
   }
-  st.idx = Math.max(0, packed.indexOf(want));
-  image = bootImage(base, buildPack(packed, st.idx, st.engine | st.chip << 1 | (st.mode ? 8 : 0)));
+  packed = have.slice(lo, hi + 1);
+  st.idx = packed.indexOf(want);
+  const image = bootImage(base, buildPack(packed, st.idx, st.engine | st.chip << 1 | (st.mode ? 8 : 0)));
   st.patch = 0;                                      // (the firmware starts on these)
   st.octave = 0;
   st.knob = [0, 0, 0, 0];
@@ -506,7 +507,7 @@ async function surprise() {
     for (let tries = 0; tries < 8; tries++) {
       const e = entryOf(Math.floor(Math.random() * index.paths.length));
       const probe = { ...e };
-      try { await load(probe); } catch { continue; }    // RSID and friends: draw again
+      try { await load(probe); } catch { continue; }    // BASIC tunes and friends: draw again
       await add(probe);
       break;
     }
@@ -787,19 +788,19 @@ for (const b of document.querySelectorAll("[data-track]")) b.addEventListener("c
 $("bpm-dn").addEventListener("click", () => node && st.mode && turnMachine(1, -2));
 $("bpm-up").addEventListener("click", () => node && st.mode && turnMachine(1, 2));
 
-// your own .sid files: the picker or a drop anywhere on the page
+// your own .sid files and GoatTracker 2 songs (.sng): the picker or a drop anywhere on the page
 async function openFiles(files) {
   let first = true;
   for (const f of files) {
-    if (!/\.sid$/i.test(f.name)) continue;
+    if (!/\.(sid|sng)$/i.test(f.name)) continue;
     const bytes = new Uint8Array(await f.arrayBuffer());
     const src = `file:${f.name}:${f.size}`;
     bytesOf.set(src, bytes);
-    const info = sidInfo(bytes);
+    const info = tuneInfo(bytes);
     const e = { src, song: 0, songs: info?.songs, title: info?.title || f.name, author: info?.author,
       released: info?.released, length: null, group: "file", note: `${f.name}, from this computer` };
     if (first) { await add(e); first = false; }
-    else if (info?.kind === "PSID" && !list.some((x) => x.src === src)) {
+    else if (info && !info.basic && !info.problem && !list.some((x) => x.src === src)) {
       try { await load(e); list.push(e); } catch (err) { toast(`${f.name}: ${err.message}`); }
     }
   }

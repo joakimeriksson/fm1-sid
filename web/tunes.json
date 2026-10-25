@@ -17,7 +17,29 @@
     "sync": 0.0,
     "ring": 0.0,
     "cutoff_per_s": 370.5,
-    "pw_per_s": 152.0
+    "pw_per_s": 152.0,
+    "vol_per_s": 0.0
+   }
+  },
+  {
+   "path": "MUSICIANS/G/Galway_Martin/Arkanoid.sid",
+   "song": 1,
+   "songs": 20,
+   "title": "Arkanoid",
+   "author": "Martin Galway",
+   "released": "1987 Imagine",
+   "length": 142.0,
+   "tags": [
+    "filter",
+    "pwm",
+    "digi"
+   ],
+   "measured": {
+    "sync": 0.0,
+    "ring": 0.0,
+    "cutoff_per_s": 32.6,
+    "pw_per_s": 84.7,
+    "vol_per_s": 1223.2
    }
   },
   {
@@ -35,7 +57,8 @@
     "sync": 0.084,
     "ring": 0.0,
     "cutoff_per_s": 0.0,
-    "pw_per_s": 11.4
+    "pw_per_s": 11.4,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -56,7 +79,8 @@
     "sync": 0.162,
     "ring": 0.204,
     "cutoff_per_s": 14.4,
-    "pw_per_s": 89.8
+    "pw_per_s": 89.8,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -76,7 +100,8 @@
     "sync": 0.057,
     "ring": 0.026,
     "cutoff_per_s": 39.9,
-    "pw_per_s": 188.8
+    "pw_per_s": 188.8,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -95,7 +120,8 @@
     "sync": 0.0,
     "ring": 0.0,
     "cutoff_per_s": 266.7,
-    "pw_per_s": 420.6
+    "pw_per_s": 420.6,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -116,7 +142,8 @@
     "sync": 0.17,
     "ring": 0.337,
     "cutoff_per_s": 35.2,
-    "pw_per_s": 185.3
+    "pw_per_s": 185.3,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -137,7 +164,8 @@
     "sync": 0.057,
     "ring": 0.09,
     "cutoff_per_s": 44.2,
-    "pw_per_s": 149.7
+    "pw_per_s": 149.7,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -153,7 +181,8 @@
     "sync": 0.0,
     "ring": 0.0,
     "cutoff_per_s": 0.0,
-    "pw_per_s": 19.7
+    "pw_per_s": 19.7,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -173,7 +202,8 @@
     "sync": 0.043,
     "ring": 0.085,
     "cutoff_per_s": 30.1,
-    "pw_per_s": 141.4
+    "pw_per_s": 141.4,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -194,7 +224,8 @@
     "sync": 0.216,
     "ring": 0.07,
     "cutoff_per_s": 83.6,
-    "pw_per_s": 150.8
+    "pw_per_s": 150.8,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -214,7 +245,8 @@
     "sync": 0.6,
     "ring": 0.0,
     "cutoff_per_s": 40.0,
-    "pw_per_s": 74.0
+    "pw_per_s": 74.0,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -235,7 +267,8 @@
     "sync": 0.226,
     "ring": 0.23,
     "cutoff_per_s": 37.6,
-    "pw_per_s": 119.1
+    "pw_per_s": 119.1,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -253,7 +286,8 @@
     "sync": 0.024,
     "ring": 0.008,
     "cutoff_per_s": 0.0,
-    "pw_per_s": 97.9
+    "pw_per_s": 97.9,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -274,7 +308,8 @@
     "sync": 0.365,
     "ring": 0.294,
     "cutoff_per_s": 100.0,
-    "pw_per_s": 180.3
+    "pw_per_s": 180.3,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -294,7 +329,8 @@
     "sync": 0.284,
     "ring": 0.0,
     "cutoff_per_s": 43.2,
-    "pw_per_s": 119.1
+    "pw_per_s": 119.1,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -314,7 +350,8 @@
     "sync": 0.33,
     "ring": 0.0,
     "cutoff_per_s": 44.9,
-    "pw_per_s": 140.9
+    "pw_per_s": 140.9,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -334,7 +371,8 @@
     "sync": 0.0,
     "ring": 0.375,
     "cutoff_per_s": 245.3,
-    "pw_per_s": 37.5
+    "pw_per_s": 37.5,
+    "vol_per_s": 0.0
    }
   },
   {
@@ -355,7 +393,29 @@
     "sync": 0.188,
     "ring": 0.226,
     "cutoff_per_s": 53.7,
-    "pw_per_s": 93.8
+    "pw_per_s": 93.8,
+    "vol_per_s": 0.0
+   }
+  },
+  {
+   "path": "MUSICIANS/H/Huelsbeck_Chris/Great_Giana_Sisters.sid",
+   "song": 1,
+   "songs": 23,
+   "title": "The Great Giana Sisters",
+   "author": "Chris H\u00fclsbeck",
+   "released": "1987 Time Warp",
+   "length": 221.8,
+   "tags": [
+    "filter",
+    "pwm",
+    "digi"
+   ],
+   "measured": {
+    "sync": 0.0,
+    "ring": 0.0,
+    "cutoff_per_s": 24.6,
+    "pw_per_s": 190.7,
+    "vol_per_s": 2214.2
    }
   },
   {
