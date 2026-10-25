@@ -33,11 +33,22 @@ static inline uint32_t exp_period(uint32_t env)
 #define COMB_PT  1               /* pulse + tri */
 #define COMB_PS  2               /* pulse + saw */
 #define COMB_PST 3               /* pulse + saw + tri */
+#ifdef SID_COMB_CONST                    /* the tables as constants (flash, not 64 KB of RAM): tools/combtab.c */
+#include "sid_comb.h"                    /* writes them, comb_build's own output, 12 bits an entry (48 KB) */
+static inline uint32_t comb_at(uint32_t m, uint32_t t, uint32_t i)
+{
+    const uint8_t *b = comb_tab12[m][t] + (i >> 1) * 3u;
+    return i & 1u ? (uint32_t)(b[1] >> 4 | b[2] << 4) : (uint32_t)(b[0] | (b[1] & 15u) << 8);
+}
+#else
 static uint16_t comb_tab[2][4][4096];
 static uint8_t comb_ready[2];
+#define comb_at(m, t, i) comb_tab[m][t][i]
+#endif
 /* waveform bits (ctrl >> 4 & 7: tri 1, saw 2, pulse 4) -> table, -1: not combined */
 static const int8_t COMB_OF[8] = {-1, -1, -1, COMB_ST, -1, COMB_PT, COMB_PS, COMB_PST};
 
+#ifndef SID_COMB_CONST
 static void comb_build(uint32_t model)
 {
     static const uint8_t W[5] = {16, 8, 4, 2, 1};
@@ -79,6 +90,7 @@ static void comb_build(uint32_t model)
     }
     comb_ready[model] = 1;
 }
+#endif
 
 /* ------------------------------------------------------------------------------------------
  * Filter cutoff. 8580: close to linear, ~30 Hz to ~12 kHz. 6581: the S-shaped curve of a
@@ -177,8 +189,10 @@ void sid_init(sid_t *s, sid_model_t model, uint32_t clock_hz, uint32_t fs)
         s->voice_zero = 0x800;
         s->mixer_dc = 0;
     }
+#ifndef SID_COMB_CONST
     if (!comb_ready[model])
         comb_build(model);
+#endif
     sid_reset(s);
 #ifdef SID_LOG
     if (sid_log_init)
@@ -342,7 +356,7 @@ static inline uint32_t wave_out(const sid_t *s, sid_voice_t *v, uint32_t ring_ms
     case 2: out = acc >> 12; break;
     case 4: out = pulse; break;
     default:
-        out = (w & 4u) && !pulse ? 0u : comb_tab[s->model][COMB_OF[w & 7u]][acc >> 12];
+        out = (w & 4u) && !pulse ? 0u : comb_at(s->model, (uint32_t)COMB_OF[w & 7u], acc >> 12);
         break;
     }
     if (w & 8u)

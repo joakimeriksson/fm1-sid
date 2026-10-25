@@ -9,6 +9,14 @@ set -eu
 cd "$(dirname "$0")/.."
 mkdir -p ext && cd ext
 [ -d resid-0.16 ] || { curl -sSfL -o r016.tgz http://www.zimmers.net/anonftp/pub/cbm/crossplatform/emulators/resid/resid-0.16.tar.gz && tar xzf r016.tgz && rm r016.tgz; }
+# reSID 0.16's combined-waveform tables as constants of 8 bits (reg8 is an unsigned int: 16 KB a table,
+# and not const): 4 KB each, in flash (as fm1-dock's modules/sid/resid); the values are 8-bit
+sed -E -i.orig -e 's/static reg8 wave(6581|8580)([PST_]+)\[\];/static const unsigned char wave\1\2[];/' \
+    -e 's/^( +)reg8\* wave(__ST|_P_T|_PS_|_PST);/\1const unsigned char* wave\2;/' resid-0.16/wave.h
+for f in resid-0.16/wave6581*.cc resid-0.16/wave8580*.cc; do
+    sed -i.orig 's/^reg8 WaveformGenerator::wave/const unsigned char WaveformGenerator::wave/' "$f"
+done
+rm -f resid-0.16/wave.h.orig resid-0.16/wave6581*.cc.orig resid-0.16/wave8580*.cc.orig
 [ -d resid10 ] || git clone -q --depth 1 https://github.com/libsidplayfp/resid resid10
 [ -d residfp ] || git clone -q --depth 1 https://github.com/libsidplayfp/libresidfp residfp
 cd resid10
