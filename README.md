@@ -1,12 +1,17 @@
 # fm1-sid — a SID synth for the M-VAVE FM-1?
 
 A feasibility study, with a working prototype: can the **M-VAVE FM-1** pocket synth
-(JieLi AC791N, pi32v2 CPU at 240 MHz, see [the emulator](..)) be turned into a synth built
+(JieLi AC791N, pi32v2 CPU at 240 MHz, see [the emulator](https://github.com/joakimeriksson/fm1-emu)) be turned into a synth built
 on the **MOS 6581 / 8580 SID**, the Commodore 64's sound chip?
 
 **Just want to use it?** Read the [user guide](#user-guide-fm-1-sid): playing C64 tunes and
 GoatTracker songs on the FM-1, putting your own on it, and writing music with the GoatTracker
 editor. The rest of this file is how it was built and measured.
+
+**Where it lives:** this repository is also [fm1-emu](https://github.com/joakimeriksson/fm1-emu)'s
+`fm1-sid/` (a submodule): its web page and some builds use the emulator next to it (`../web`, `../target`,
+`../tools`). Clone fm1-emu with `--recurse-submodules` for all of it; the host tests (`make test`) and
+the fm1-dock module (`dock/build.sh`) build from this repository alone. Licences: [LICENSING.md](LICENSING.md).
 
 **On a real FM-1, run it as an [fm1-dock](https://github.com/joakimeriksson/fm1-dock) module.**
 fm1-dock owns USB, the installers and the rescue; FM-1 SID is deployed into it over USB (about
