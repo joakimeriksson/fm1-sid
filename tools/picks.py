@@ -2,7 +2,8 @@
 """The web page's picks (web/tunes.json): where each tune is in HVSC, its header, the length of
 the song from HVSC's Songlengths.md5, and tags measured from its own register stream
 (player/psid.c on the host, build/psidlog): how much it uses hard sync, ring modulation, the
-filter (a moving cutoff) and pulse-width modulation.
+filter (a moving cutoff), pulse-width modulation and samples played through the volume
+register (digi).
     tools/picks.py   (needs build/psidlog, the tunes in build/hvsc from tools/tunes.sh, and
                       build/Songlengths.md5 from HVSC's DOCUMENTS/)
 SPDX-License-Identifier: BSD-2-Clause"""
@@ -18,6 +19,7 @@ HVSC = ROOT / "build" / "hvsc"
 # (path in HVSC, song): the page's playlist, in order
 PICKS = [
     ("MUSICIANS/G/Galway_Martin/Wizball.sid", 7),
+    ("MUSICIANS/G/Galway_Martin/Arkanoid.sid", 1),
     ("MUSICIANS/G/Galway_Martin/Rolands_Ratrace.sid", 1),
     ("MUSICIANS/H/Hubbard_Rob/Sanxion.sid", 1),
     ("MUSICIANS/H/Hubbard_Rob/Sanxion.sid", 2),
@@ -35,6 +37,7 @@ PICKS = [
     ("MUSICIANS/O/Ouwehand_Reyn/Bad_Blood-City.sid", 1),
     ("MUSICIANS/G/Galway_Martin/Wizball.sid", 9),
     ("MUSICIANS/H/Hubbard_Rob/Pandora.sid", 1),
+    ("MUSICIANS/H/Huelsbeck_Chris/Great_Giana_Sisters.sid", 1),
 ]
 
 
@@ -62,7 +65,8 @@ def text(b):
 def tags(sid, song, length):
     """The share of frames (play calls, 50 Hz) where a gated voice has sync / ring on; the
     filter: cutoff writes that change it per second, with a voice routed in; PWM: pulse width
-    changes per second on a pulse voice."""
+    changes per second on a pulse voice; digi: volume writes per second (samples played through
+    $D418, as Arkanoid's drums are)."""
     with tempfile.TemporaryDirectory() as d:
         log = Path(d) / "t.sidlog"
         subprocess.run([str(ROOT / "build" / "psidlog"), str(sid), str(log), str(song),
@@ -71,7 +75,7 @@ def tags(sid, song, length):
     nev = struct.unpack_from("<I", b, 8 + 4 * 5)[0]
     regs = [0] * 32
     frames = {}
-    cut = pw = 0
+    cut = pw = vol = 0
     last_frame = 0
     for i in range(nev):
         cyc, chip, r, v, _ = struct.unpack_from("<IBBBB", b, 8 + 28 + 8 * i)
@@ -85,6 +89,8 @@ def tags(sid, song, length):
             cut += 1
         if r in (2, 3, 9, 10, 16, 17) and regs[r] != v:
             pw += 1
+        if r == 0x18 and regs[r] & 15 != v & 15:
+            vol += 1
         regs[r] = v
     n = max(1, len(frames))
     secs_ = n / 50
@@ -95,8 +101,9 @@ def tags(sid, song, length):
     if ring > 0.05: t.append("ring")
     if cut / secs_ > 5: t.append("filter")
     if pw / secs_ > 20: t.append("pwm")
+    if vol / secs_ > 200: t.append("digi")
     return t, {"sync": round(sync, 3), "ring": round(ring, 3), "cutoff_per_s": round(cut / secs_, 1),
-               "pw_per_s": round(pw / secs_, 1)}
+               "pw_per_s": round(pw / secs_, 1), "vol_per_s": round(vol / secs_, 1)}
 
 
 def main():

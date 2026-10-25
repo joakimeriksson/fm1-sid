@@ -76,11 +76,28 @@ build/sidlogger: host/sidlogger.cpp $(LSP)/src/.libs/libsidplayfp.a
 compare: build/sid_record build/sid_replay
 	tools/compare.sh
 
-# the PSID player (player/psid.c around floooh's m6502.h, ext/chips) on the host: register stream
+# the PSID player (player/psid.c around player/cpu6510.h) on the host: register stream
 # as sidlog v2, to check it against build/sidlogger; and the FM-1 firmware that plays the tunes
-build/psidlog: player/psid.c player/psid.h player/psidlog.c ext/chips/m6502.h
+build/psidlog: player/psid.c player/psid.h player/cpu6510.h player/psidlog.c
 	@mkdir -p build
 	$(CC) $(CFLAGS) -Iext/chips -Iplayer -o $@ player/psid.c player/psidlog.c
+
+# GoatTracker songs (player/gt2.c, GoatTracker's playroutine on the .sng in place) on the host:
+# its registers a frame at a time, checked against GoatTracker's own by tools/gt2check.sh
+build/gt2log: player/gt2.c player/gt2.h player/gt2log.c player/psid.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Iplayer -o $@ player/gt2.c player/gt2log.c
+
+gt2check: build/gt2log
+	tools/gt2check.sh
+
+# the editing (player/gt2edit.c) on the host: save as loaded, into RAM, random edits, back
+build/gt2edtest: player/gt2.c player/gt2edit.c player/gt2.h player/gt2edtest.c player/psid.h
+	@mkdir -p build
+	$(CC) $(CFLAGS) -Iplayer -o $@ player/gt2.c player/gt2edit.c player/gt2edtest.c
+
+gt2edtest: build/gt2edtest
+	build/gt2edtest $(wildcard ../../sid-tracker/sids/*.sng ../../sid-tracker/tests/songs/*.sng)
 
 firmware:
 	firmware/build.sh
@@ -91,4 +108,4 @@ webpage: firmware
 fwsc: firmware
 	tools/fwsc.py
 
-.PHONY: compare firmware webpage fwsc
+.PHONY: compare gt2check gt2edtest firmware webpage fwsc
