@@ -3,6 +3,10 @@
 #   firmware/build_dinghy.sh -> build/dfw/sidplayer.bin (app.bin for XIP 0x02000120, an empty tune pack)
 #                               build/dfw/sidplayer_xip.bin (+0x120 pad, for fm1-emu --bin)
 #                               build/dfw/sidplayer_base.bin (no tune pack: tools/fwsc.py --dinghy appends one)
+#   DOCK_BOOT=1 firmware/build_dinghy.sh -> build/dfw_boot/: the same for fm1-dock's boot slot (runs at
+#                               0x02011000, no song store, its NOINIT clear of fm1-dock's start counter);
+#                               fm1-dock's tools/hbboot.py make build/dfw_boot/sidplayer.bin --no-data makes
+#                               the .dock (a standalone FM-1 SID on a real FM-1 with fm1-dock to come back to)
 # Needs ext/ (tools/fetch_ext.sh: reSID 0.16). The tunes come after the image as a tune
 # pack (tools/sidpack.py); without one it plays its own tune.
 # SPDX-License-Identifier: GPL-3.0-only
@@ -14,6 +18,26 @@ BASE=0x02000120
 SLOT=0x8DFBC
 LD=firmware/app_dinghy.ld
 D=dinghy
+HAL="-I$D/hal"
+DEFS=
+if [ "${DOCK_BOOT:-0}" = 1 ]; then          # fm1-dock's boot slot: flash 0x15000..0x93000 (tools/hbboot.py)
+    O=build/dfw_boot
+    BASE=0x02011000
+    SLOT=0x7E000
+    mkdir -p "$O/hal"
+    sed -e "s/XIP    (rx)  : ORIGIN = 0x02000120, LENGTH = 0x8DFBC/XIP    (rx)  : ORIGIN = $BASE, LENGTH = $SLOT/" \
+        -e "s/NOINIT (rw)  : ORIGIN = 0x01C7C000, LENGTH = 0x3D50/NOINIT (rw)  : ORIGIN = 0x01C7C000, LENGTH = 0x3D40/" \
+        firmware/app_dinghy.ld > "$O/app.ld"
+    grep -q "ORIGIN = $BASE" "$O/app.ld" && grep -q "LENGTH = 0x3D40" "$O/app.ld" || { echo "app_dinghy.ld: not the layout this knows"; exit 1; }
+    LD="$O/app.ld"
+    # the PC limits from where the image starts (as tools/hbboot.py relink does to a Felucca tree)
+    sed -e "s/_sstack_top\[\], _etext\[\];/_sstack_top[], _etext[], _start[];/" \
+        -e "s/FM1_PC_LIMIT0_L = 0x02000120u;/FM1_PC_LIMIT0_L = (uint32_t)(uintptr_t)_start;/" \
+        -e "s/re > rs ? rs : 0x02000120u;/re > rs ? rs : (uint32_t)(uintptr_t)_start;/" $D/hal/fm1_guard.h > "$O/hal/fm1_guard.h"
+    [ "$(grep -c '_start' "$O/hal/fm1_guard.h")" -ge 3 ] || { echo "fm1_guard.h: not the layout this knows"; exit 1; }
+    HAL="-I$O/hal -I$D/hal"
+    DEFS=-DDOCK_BOOT=1
+fi
 L="$TC/pi32v2/lib/r3"
 mkdir -p "$O"
 python3 firmware/gen_assets.py "$O/assets.h"
@@ -23,7 +47,7 @@ CF="-O2 -ffunction-sections -fno-builtin -ffreestanding -Wall -Wno-unused-functi
 $CC -c $D/crt0.S -o $O/crt0.o
 $CC -c $D/hal/fm1_vec.S -o $O/fm1_vec.o
 $CC -c $D/hal/fm1_isr.S -o $O/fm1_isr.o
-$CC $CF -DFELUCCA_ID='"FM-1_900"' -DAPP_VER='"1.0"' -I$D/hal -I$D/src -I$D/gen -Isrc -Iplayer -I$O \
+$CC $CF $DEFS -DFELUCCA_ID='"FM-1_900"' -DAPP_VER='"1.0"' $HAL -I$D/src -I$D/gen -Isrc -Iplayer -I$O \
     -c firmware/fm1sid.c -o $O/fm1sid.o
 $CC $CF -c src/sid.c -o $O/own_sid.o
 $CC $CF -Isrc -c src/sidsynth.c -o $O/sidsynth.o

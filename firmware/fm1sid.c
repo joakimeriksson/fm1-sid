@@ -30,7 +30,9 @@
  * between the strips (lcd_frame).
  * SPDX-License-Identifier: GPL-3.0-only */
 #define APP_NAME "FM-1 SID"
-#define DOCK_BOOT 0
+#ifndef DOCK_BOOT
+#define DOCK_BOOT 0                        /* 1: built for fm1-dock's boot slot (firmware/build_dinghy.sh) */
+#endif
 #include <stdint.h>
 #ifdef PLATFORM_DOCK                      /* fm1-dock's module (dock/): the host's table as the platform */
 #include "dock_platform.h"
