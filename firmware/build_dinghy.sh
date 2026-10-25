@@ -6,7 +6,9 @@
 #   DOCK_BOOT=1 firmware/build_dinghy.sh -> build/dfw_boot/: the same for fm1-dock's boot slot (runs at
 #                               0x02011000, no song store, its NOINIT clear of fm1-dock's start counter);
 #                               fm1-dock's tools/hbboot.py make build/dfw_boot/sidplayer.bin --no-data makes
-#                               the .dock (a standalone FM-1 SID on a real FM-1 with fm1-dock to come back to)
+#                               the .dock: for fm1-emu and fm1-dock's developer builds (--boot-slot) only.
+#                               Its USB replies do not reach a computer on a real FM-1: never on an FM-1
+#                               anyone uses (it held one at every power-on, 2026-10-25)
 # Needs ext/ (tools/fetch_ext.sh: reSID 0.16). The tunes come after the image as a tune
 # pack (tools/sidpack.py); without one it plays its own tune.
 # SPDX-License-Identifier: GPL-3.0-only
