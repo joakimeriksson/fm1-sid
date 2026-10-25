@@ -12,6 +12,7 @@ const MAN = [0x7d, 0x48, 0x42];
 const MODULE = 0x23;
 const CHUNK = 256;
 const NAMES = ["felucca", "fm1-dock", "harbor", "fm-1"];   // the USB-MIDI names fm1-dock goes by
+export const isFm1Port = (name) => NAMES.some((n) => name.toLowerCase().includes(n));
 const STATUS = ["done", "bad CRC", "bad header", "too big", "no space", "flash error", "verify failed",
   "data missing", "not started", "not found", "bad message", "refused"];
 // FM-1 SID's own refusals (firmware/fm1sid.c usb_file)

@@ -6,7 +6,7 @@
 // page sends it.
 // SPDX-License-Identifier: GPL-3.0-only
 import { buildPack, bootImage, tuneInfo } from "./pack.js";
-import { FM1Link, dinFrames, sendable } from "./fm1link.js";
+import { FM1Link, dinFrames, sendable, isFm1Port } from "./fm1link.js";
 
 const HVSC = "https://www.hvsc.c64.org/download/C64Music/";
 const MHZ = 240;                       // the FM-1's clock; idle time is skipped, not emulated
@@ -350,16 +350,20 @@ async function connectMidi() {
     toast(`MIDI: ${err.message}`);
     return;
   }
+  // every input but an FM-1's (its USB port carries the answers to "Play on my FM-1", whose handler
+  // stays; FM-1 SID sends no notes)
+  const onNote = (ev) => {
+    const [st0, n, v] = ev.data;
+    const t = st0 & 0xf0;
+    if (t === 0x90 && v) midiNote(n, true);
+    else if (t === 0x80 || t === 0x90) midiNote(n, false);
+  };
   const hook = () => {
     const names = [];
     for (const input of midi.inputs.values()) {
+      if (isFm1Port(input.name)) continue;
       names.push(input.name);
-      input.onmidimessage = (ev) => {
-        const [st0, n, v] = ev.data;
-        const t = st0 & 0xf0;
-        if (t === 0x90 && v) midiNote(n, true);
-        else if (t === 0x80 || t === 0x90) midiNote(n, false);
-      };
+      input.onmidimessage = onNote;
     }
     $("midi-state").textContent = names.length ? `listening to ${names.join(", ")}` : "no MIDI input found: plug one in";
   };
