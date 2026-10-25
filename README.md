@@ -17,7 +17,9 @@ the fm1-dock module (`dock/build.sh`) build from this repository alone. Licences
 the installers and the rescue: as FM-1 SID's own firmware (`web/sidplayer.fwsc`, `dock/build_solo.sh`:
 fm1-dock with FM-1 SID and the sine, starting in FM-1 SID), or as a module deployed into an fm1-dock
 with other synths (`dock/build.sh`). PSID and RSID tunes, GoatTracker songs, the editor, songs saved
-in fm1-dock's flash banks, subtunes on ALGORITHM. It has played on a real FM-1 as a module (Arkanoid at
+in fm1-dock's flash banks, subtunes on ALGORITHM. Any .sid can go to a real FM-1 over USB without an install: "Play on my FM-1" on the page, or
+fm1-dock's `tools/dock.py send tune.sid [--arg SONG]`, writes it into FM-1 SID's C64 memory as it arrives
+and plays it (nothing in flash; `dock/send_test.py` checks it in fm1-emu). It has played on a real FM-1 as a module (Arkanoid at
 full speed, 2026-10-24), and as its own firmware (installed, USB answering as it plays, the heaviest
 audio block at 34 %, no overruns, 2026-10-25). The standalone builds (Felucca's and Dinghy's) are not for a real FM-1: their
 USB replies never reach a computer.

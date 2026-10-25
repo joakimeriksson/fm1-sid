@@ -147,6 +147,7 @@ static uint32_t song_tail;                  /* bytes at psid_mem's end holding a
 
 static uint8_t gt;                          /* the tune playing is a GoatTracker song */
 static uint8_t trk;                         /* the GoatTracker editor is up (firmware/tracker.c) */
+static uint8_t usb_tune;                    /* the tune playing came from the computer (usb_file) */
 typedef char gt2_fits[GT2_SIZE_MAX <= sizeof psid_mem ? 1 : -1];
 static sid_t own;
 
@@ -872,9 +873,13 @@ static void draw(void)
         p = cat(line, info->author);
         text(2, 30, line, C_CYAN);
         if (info->songs > 1u) {            /* a tune of several subtunes: which one (ALGORITHM turns it) */
-            p = fmt_u(line, play_idx + 1u, 1);
-            p = cat(p, "/");
-            p = fmt_u(p, ntunes, 1);
+            if (usb_tune) {
+                p = cat(line, "USB");
+            } else {
+                p = fmt_u(line, play_idx + 1u, 1);
+                p = cat(p, "/");
+                p = fmt_u(p, ntunes, 1);
+            }
             p = cat(p, " Song ");
             p = fmt_u(p, cur_song, 1);
             p = cat(p, "/");
@@ -885,10 +890,14 @@ static void draw(void)
             p = fmt_u(p, played_ms / 1000u % 60u, 2);
             p = cat(p, running ? "" : " II");
         } else {
-            p = cat(line, "Tune ");
-            p = fmt_u(p, play_idx + 1u, 1);
-            p = cat(p, "/");
-            p = fmt_u(p, ntunes, 1);
+            if (usb_tune) {
+                p = cat(line, "From USB");
+            } else {
+                p = cat(line, "Tune ");
+                p = fmt_u(p, play_idx + 1u, 1);
+                p = cat(p, "/");
+                p = fmt_u(p, ntunes, 1);
+            }
             p = cat(p, "  ");
             p = fmt_u(p, played_ms / 60000u, 1);
             p = cat(p, ":");
@@ -973,13 +982,39 @@ static void draw(void)
 }
 
 /* ---------------------------------------------------------------------------- tunes --- */
+
+/* the tune loaded in P (or G) from its start: song (0: the tune's own); header: take the chip
+ * model from the tune */
+static void go(uint32_t song, int header)
+{
+    uint32_t t, i;
+    if (header)
+        model = (pack_flags >> 1 & 3u) ? (pack_flags >> 1 & 3u) - 1u : tune_info()->model;
+    if (engine)
+        sid_init(&own, model ? SID_8580 : SID_6581, SID_CLOCK_PAL, FS_HZ);
+    else
+        rs_init(model, 985248.0, 24000000.0 / 544.0);
+    for (i = 0; i < 32; i++)
+        regs[i] = 0;
+    ev_head = ev_tail = 0;
+    play_cyc = 0;
+    cyc_frac = 0;
+    call_base = 0;
+    cur_song = song ? song : 1u;
+    t = gt ? gt2_init(G, song) : psid_init(P, song ? song : 1u);
+    gen_cyc = (t / PSID_PAL_FRAME + 1u) * PSID_PAL_FRAME;
+    played_ms = 0;
+    running = 1;
+}
+
 /* (re)start playlist entry idx; header: take the chip model from the tune */
 static void start(uint32_t idx, int header)
 {
-    uint32_t t, i, song;
+    uint32_t song;
     running = 0;
     fm1_delay_ms(4);                        /* the ISR finishes the half it is in */
     mode = 0;
+    usb_tune = 0;
     play_idx = idx % ntunes;
     {
         const uint8_t *t = tune_ptr[play_idx];
@@ -993,26 +1028,129 @@ static void start(uint32_t idx, int header)
         if (!gt && (!t || psid_load(P, t, len, on_write, 0)))
             psid_load(P, HOUSE, sizeof HOUSE, on_write, 0);   /* not one we play: ours instead */
     }
-    if (header)
-        model = (pack_flags >> 1 & 3u) ? (pack_flags >> 1 & 3u) - 1u : tune_info()->model;
+    song = song_req ? song_req : tune_song[play_idx] ? tune_song[play_idx] : tune_info()->start;
+    song_req = 0;
+    go(song, header);
+}
+
+/* the chip or the engine changed: the tune again from its start, but one from the computer goes on
+ * (its bytes are not kept: psid_mem is the C64's memory, which it changed), the new chip given the
+ * registers as they are */
+static void restart(void)
+{
+    uint32_t i;
+    uint8_t r[25];
+    if (!usb_tune) {
+        start(play_idx, 0);
+        return;
+    }
+    running = 0;
+    fm1_delay_ms(4);
+    for (i = 0; i < 25u; i++)
+        r[i] = regs[i];
     if (engine)
         sid_init(&own, model ? SID_8580 : SID_6581, SID_CLOCK_PAL, FS_HZ);
     else
         rs_init(model, 985248.0, 24000000.0 / 544.0);
-    for (i = 0; i < 32; i++)
-        regs[i] = 0;
-    ev_head = ev_tail = 0;
-    play_cyc = 0;
-    cyc_frac = 0;
-    call_base = 0;
-    song = song_req ? song_req : tune_song[play_idx] ? tune_song[play_idx] : tune_info()->start;
-    song_req = 0;
-    cur_song = song ? song : 1u;
-    t = gt ? gt2_init(G, song) : psid_init(P, song ? song : 1u);
-    gen_cyc = (t / PSID_PAL_FRAME + 1u) * PSID_PAL_FRAME;
-    played_ms = 0;
+    for (i = 0; i < 25u; i++) {
+        ev_t e;
+        e.cyc = 0;
+        e.reg = (uint8_t)i;
+        e.val = r[i];
+        apply(&e);
+    }
     running = 1;
 }
+
+#ifdef PLATFORM_DOCK
+/* A tune from the computer (fm1-dock's MODULE frames, hb_module.h "a file to a module": tools/dock.py
+ * send, the page's "Play on my FM-1"): a .sid into the C64's memory as it arrives, then played; the
+ * arg is the subtune (0: the tune's own). Nothing kept and no flash written: the next tune is the
+ * playlist's. 0: taken; 1 a bad frame, 2 the editor is open, 3 not a tune we play, 4 out of order */
+static struct { uint32_t size, got, arg, off; uint8_t on, ok, head[0x7e]; } urx;
+
+static void usb_put(uint32_t at, uint8_t b)  /* file byte at into the C64's memory */
+{
+    uint32_t ad = psid_info(P)->load + (at - urx.off);
+    if (at >= urx.off && ad < 65536u)
+        psid_ram(P)[ad] = b;
+}
+
+static int usb_file(const uint8_t *p, uint32_t n)
+{
+    uint32_t at, i, k, have;
+    if (n < 1u)
+        return 1;
+    switch (p[0]) {
+    case 'B':                               /* [size u32][subtune u32]: a tune begins (the one playing goes on to its header) */
+        if (n < 9u)
+            return 1;
+        if (trk)
+            return 2;
+        urx.size = rd32(p + 1);
+        urx.arg = rd32(p + 5);
+        if (urx.size < 0x76u || urx.size > 0x7eu + 65536u)
+            return 3;
+        urx.got = 0;
+        urx.ok = 0;
+        urx.on = 1;
+        return 0;
+    case 'D':                               /* [at u32][bytes] */
+        if (!urx.on || n < 5u)
+            return 1;
+        at = rd32(p + 1);
+        p += 5;
+        n -= 5;
+        if (at + n <= urx.got)
+            return 0;                       /* sent again (no answer came): taken already */
+        if (at != urx.got || n > urx.size - at)
+            return 4;
+        have = urx.size < 0x7eu ? urx.size : 0x7eu;
+        for (i = 0; i < n; i++, urx.got++) {
+            if (urx.ok) {
+                usb_put(urx.got, p[i]);
+                continue;
+            }
+            urx.head[urx.got] = p[i];       /* the header (and the load address) first */
+            if (urx.got + 1u == have) {
+                const uint8_t *h = urx.head;
+                int o;
+                /* not one we play (not a .sid, an RSID in BASIC): refused, the tune playing goes on */
+                if ((memcmp(h, "PSID", 4) && memcmp(h, "RSID", 4)) ||
+                    (h[0] == 'R' && have >= 0x78u && h[5] >= 2u && (h[0x77] & 2u))) {
+                    urx.on = 0;
+                    return 3;
+                }
+                running = 0;                /* from here the C64's memory is the new tune's */
+                fm1_delay_ms(4);
+                gt = 0;                     /* (G and a saved song's bytes are psid_mem's too) */
+                song_tail = 0;
+                usb_tune = 0;
+                o = psid_begin(P, urx.head, have, urx.size, on_write, 0);
+                if (o < 0) {
+                    urx.on = 0;
+                    start(play_idx, 0);     /* (the playlist's again) */
+                    return 3;
+                }
+                urx.off = (uint32_t)o;
+                urx.ok = 1;
+                for (k = urx.off; k < have; k++)
+                    usb_put(k, urx.head[k]);
+            }
+        }
+        return 0;
+    case 'E':                               /* all of it: play */
+        if (!urx.on || !urx.ok || urx.got != urx.size)
+            return 4;
+        urx.on = 0;
+        mode = 0;
+        usb_tune = 1;
+        go(urx.arg && urx.arg <= tune_info()->songs ? urx.arg : tune_info()->start, 1);
+        return 0;
+    }
+    return 1;
+}
+#endif
 
 /* the synth mode: the chip fresh, the four driver instances, the patches and knobs; the
  * sequencer's pattern, view and state carry over (an engine or chip change keeps it going) */
@@ -1336,7 +1474,7 @@ static void app_step(void)
 #endif
     if (fx_view && fx_keys()) {         /* (its encoders are the page's) PRESETS: the chip */
         model = !model;
-        if (trk) tk_chip(); else if (mode) start_synth(); else start(play_idx, 0);
+        if (trk) tk_chip(); else if (mode) start_synth(); else restart();
     }
     if (trk) {
         if (!fx_view)
@@ -1354,7 +1492,7 @@ static void app_step(void)
             start((play_idx + ntunes * 8u + (uint32_t)step) % ntunes, 1);
         } else if ((step = fm1_enc_take(1)) != 0) {   /* ALGORITHM: the tune's subtune */
             uint32_t n = tune_info()->songs;
-            if (n > 1u) {
+            if (n > 1u && !usb_tune) {      /* (one from the computer cannot start over: its subtune is sent) */
                 song_req = (cur_song - 1u + n * 8u + (uint32_t)step) % n + 1u;
                 start(play_idx, 0);
             }
@@ -1364,7 +1502,7 @@ static void app_step(void)
     }
     if (e & (1u << 6)) {
         engine = !engine;
-        if (trk) tk_chip(); else if (mode) start_synth(); else start(play_idx, 0);
+        if (trk) tk_chip(); else if (mode) start_synth(); else restart();
     }
 #ifndef PLATFORM_DOCK
     /* HOME held 5 s: the USB rescue */

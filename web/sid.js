@@ -6,6 +6,7 @@
 // page sends it.
 // SPDX-License-Identifier: GPL-3.0-only
 import { buildPack, bootImage, tuneInfo } from "./pack.js";
+import { FM1Link, dinFrames, sendable } from "./fm1link.js";
 
 const HVSC = "https://www.hvsc.c64.org/download/C64Music/";
 const MHZ = 240;                       // the FM-1's clock; idle time is skipped, not emulated
@@ -520,6 +521,61 @@ async function surprise() {
 // ------------------------------------------------------------------------------ drawing the page
 function status(t) { $("status").textContent = t; }
 let toastTimer = 0;
+// the tune playing to FM-1 SID on a real FM-1, over USB (fm1link.js): into its C64's memory, played at
+// once, nothing in flash. ?send=page: the same frames into the MIDI IN of the FM-1 on this page
+// (?port=NAME: the MIDI port whose name has NAME in it, when there are several)
+const sendHere = new URLSearchParams(location.search).get("send") === "page";
+const sendPort = new URLSearchParams(location.search).get("port");
+let link = null;
+const sendState = (t) => { $("send-state").textContent = t; };
+async function sendToFm1() {
+  const e = current();
+  if (!e?.bytes) return;
+  const bad = sendable(e.bytes);
+  if (bad) { sendState(bad); return; }
+  const song = e.song || 0, what = `${e.title}${song ? ` (song ${song})` : ""}`, b = $("send-fm1");
+  b.disabled = true;
+  try {
+    if (sendHere) {
+      if (!node || !st.booted) throw new Error("the FM-1 here is not running yet");
+      // (the jack's pace, 0.32 ms a byte, and a pause after each frame: fm1-dock's MIDI IN buffer is
+      // 256 bytes, and over DIN nothing answers to say a frame was taken)
+      const frames = dinFrames(e.bytes, song);
+      for (let i = 0; i < frames.length; i++) {
+        send({ type: "midi", bytes: Array.from(frames[i]) });
+        sendState(`sending ${what} to the FM-1 on this page… ${Math.round(100 * (i + 1) / frames.length)} %`);
+        await new Promise((r) => setTimeout(r, frames[i].length * 0.32 + 50));
+      }
+      sendState(`sent to the FM-1 on this page: ${what}, ${frames.length} frames into its MIDI IN`);
+      return;
+    }
+    if (!navigator.requestMIDIAccess) throw new Error("this browser has no Web MIDI with SysEx (Chrome and Edge do)");
+    if (!link) {
+      // (Chrome asks once for MIDI with SysEx, apart from plain MIDI: until it is answered the request waits)
+      sendState("asking Chrome for MIDI with SysEx…");
+      const asked = navigator.requestMIDIAccess({ sysex: true });
+      const nag = setTimeout(() => sendState("waiting for Chrome: allow MIDI (with SysEx) in the prompt at the address bar, or in this site's settings"), 2500);
+      let access;
+      try { access = await asked; } finally { clearTimeout(nag); }
+      const ports = [...access.outputs.values()].map((o) => o.name);
+      console.info("FM-1 SID: MIDI outputs", ports);
+      link = await FM1Link.open(access, sendPort);
+      if (!link) throw new Error(`no FM-1 among the MIDI ports (${ports.join(", ") || "none"}): plug it in, running FM-1 SID's firmware`);
+      console.info("FM-1 SID: sending to", link.name);
+    }
+    sendState(`sending ${what} to ${link.name}…`);
+    await link.sendTune(e.bytes, song, (f) => sendState(`sending ${what} to ${link.name}… ${Math.round(100 * f)} %`));
+    sendState(`playing on your FM-1: ${what}`);
+  } catch (err) {
+    console.warn("FM-1 SID: not sent", err);
+    link?.close();
+    link = null;
+    sendState(`not sent: ${err.message}`);
+  } finally {
+    b.disabled = false;
+  }
+}
+
 function toast(t) {
   const e = $("toast");
   e.textContent = t;
@@ -778,6 +834,7 @@ $("oct-dn").addEventListener("click", () => node ? tap(KEY.OCTDN) : null);
 $("oct-up").addEventListener("click", () => node ? tap(KEY.OCTUP) : null);
 for (const b of document.querySelectorAll("[data-knob]")) b.addEventListener("click", () => knobBy(Number(b.dataset.knob), Number(b.dataset.d)));
 $("midi").addEventListener("click", connectMidi);
+$("send-fm1").addEventListener("click", sendToFm1);
 const seqKey = (id) => () => { if (!node || !st.booted) return; if (!st.mode) { tap(KEY.HOME); setTimeout(() => tap(id), 250); } else tap(id); };
 $("seq-view").addEventListener("click", seqKey(KEY.SEQ));
 $("seq-play").addEventListener("click", seqKey(KEY.PLAY));

@@ -534,11 +534,11 @@ static void str32(char *d, const uint8_t *s)
     d[32] = 0;
 }
 
-int psid_load(psid_t *p, const uint8_t *b, uint32_t n, psid_write_fn wr, void *user)
+int psid_begin(psid_t *p, const uint8_t *b, uint32_t have, uint32_t n, psid_write_fn wr, void *user)
 {
     uint16_t ver, flags = 0;
     uint32_t off, len;
-    if (n < 0x76 || (memcmp(b, "PSID", 4) && memcmp(b, "RSID", 4)))
+    if (have > n || have < 0x76 || n < 0x76 || (memcmp(b, "PSID", 4) && memcmp(b, "RSID", 4)))
         return -1;
     memset(p, 0, sizeof *p);
     p->wr = wr;
@@ -558,6 +558,8 @@ int psid_load(psid_t *p, const uint8_t *b, uint32_t n, psid_write_fn wr, void *u
     str32(p->info.name, b + 0x16);
     str32(p->info.author, b + 0x36);
     str32(p->info.released, b + 0x56);
+    if (have < (n < 0x7cu ? n : 0x7cu) || have < off || (!p->info.load && have < off + 2u && n >= off + 2u))
+        return -1;                        /* (the header, and the load address in the data, are in b) */
     if (ver >= 2 && n >= 0x7c)
         flags = be16(b + 0x76);
     p->info.model = ((flags >> 4) & 3) == 2 ? 1 : 0;
@@ -575,7 +577,6 @@ int psid_load(psid_t *p, const uint8_t *b, uint32_t n, psid_write_fn wr, void *u
     len = n - off;
     if (len > 65536u - p->info.load)
         len = 65536u - p->info.load;
-    memcpy(p->mem + p->info.load, b + off, len);
     p->mem[1] = 0x37;
     if (p->info.rsid) {
         /* the idle loop: in the page the header leaves free, else (as libsidplayfp places its
@@ -586,6 +587,21 @@ int psid_load(psid_t *p, const uint8_t *b, uint32_t n, psid_write_fn wr, void *u
                 ;
         p->idle_ad = pg >= 0xd0 ? 0x033c : (uint16_t)(pg << 8);
     }
+    return (int)off;
+}
+
+uint8_t *psid_ram(psid_t *p) { return p->mem; }
+
+int psid_load(psid_t *p, const uint8_t *b, uint32_t n, psid_write_fn wr, void *user)
+{
+    int off = psid_begin(p, b, n, n, wr, user);
+    uint32_t len;
+    if (off < 0)
+        return -1;
+    len = n - (uint32_t)off;
+    if (len > 65536u - p->info.load)
+        len = 65536u - p->info.load;
+    memcpy(p->mem + p->info.load, b + off, len);
     return 0;
 }
 

@@ -38,4 +38,10 @@ static void release(void)
     running = 0;                            /* (the host stops calling render: nothing more to do) */
 }
 
+#ifdef HB_F_DATA                            /* (an fm1-dock with MODULE frames: a tune from the computer) */
+static int data(const uint8_t *p, uint32_t n) { return usb_file(p, n); }
+HB_DESC = {HB_ABI, "FM-1 SID", init, release, note, cc, render, ui, draw_step, 0, 0, HB_F_SCREEN | HB_F_PANEL | HB_F_DATA, midi,
+           data};
+#else
 HB_DESC = {HB_ABI, "FM-1 SID", init, release, note, cc, render, ui, draw_step, 0, 0, HB_F_SCREEN | HB_F_PANEL, midi};
+#endif
