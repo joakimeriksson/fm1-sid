@@ -61,7 +61,24 @@ static uint32_t st_lo, st_hi;
  * offset (from the pack), length, song (0: the tune's start song); little-endian. An entry is a
  * PSID / RSID file or a GoatTracker 2 song (.sng: song = its subtune, from 1). Without one: the
  * firmware's own tune (tools/housetune.py). */
+#ifdef PACK_AFTER_IMAGE                     /* FM-1 SID's own firmware (dock/solo): the pack right after this module's
+                                            * image in flash, where tools/build.py --pack and the web page put it */
+extern const uint8_t _hb_rt_load[], _hb_rt_start[], _hb_rt_end[];
+static const uint8_t *pack_at;
+#define _pack pack_at
+static const uint8_t *find_pack(void)
+{
+    const uint8_t *p = _hb_rt_load + (_hb_rt_end - _hb_rt_start);   /* the image's end: the last load image's */
+    uint32_t i;
+    p = (const uint8_t *)(((uint32_t)p + 3u) & ~3u);
+    for (i = 0; i < 0x4000u; i += 4u)       /* (a little padding between: the slot's, the app's) */
+        if (!memcmp(p + i, "SIDPACK1", 8))
+            return p + i;
+    return (const uint8_t *)"none";         /* no pack: the own tune */
+}
+#else
 extern const uint8_t _pack[];
+#endif
 #define MAXTUNES 256u
 #define PACK_MAX 0x80000u
 static const uint8_t *tune_ptr[MAXTUNES];
@@ -74,6 +91,9 @@ static uint32_t rd32(const uint8_t *b) { return b[0] | b[1] << 8 | b[2] << 16 | 
 static void load_pack(void)
 {
     uint32_t n, i;
+#ifdef PACK_AFTER_IMAGE
+    pack_at = find_pack();
+#endif
     pack_end = (uint32_t)_pack;
     if (!memcmp(_pack, "SIDPACK1", 8)) {
         n = rd32(_pack + 8);
