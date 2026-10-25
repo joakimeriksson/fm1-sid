@@ -6,7 +6,7 @@
 // page sends it.
 // SPDX-License-Identifier: GPL-3.0-only
 import { buildPack, bootImage, tuneInfo } from "./pack.js";
-import { FM1Link, dinFrames, sendable, isFm1Port } from "./fm1link.js";
+import { FM1Link, dinFrames, sendable, isFm1Port, listen } from "./fm1link.js";
 
 const HVSC = "https://www.hvsc.c64.org/download/C64Music/";
 const MHZ = 240;                       // the FM-1's clock; idle time is skipped, not emulated
@@ -359,8 +359,7 @@ async function connectMidi() {
     $("midi-state").textContent = `MIDI: ${err.message}`;
     return;
   }
-  // every input but an FM-1's (its USB port carries the answers to "Play on my FM-1", whose handler
-  // stays; FM-1 SID sends no notes)
+  // every input, an FM-1 too (FM-1 SID sends its keys as notes: the FM-1 plays the FM-1 here)
   const onNote = (ev) => {
     const [st0, n, v] = ev.data;
     const t = st0 & 0xf0;
@@ -370,29 +369,31 @@ async function connectMidi() {
   // the picker: all of them, or the one chosen (remembered); opened explicitly, as Chrome may not
   // deliver to a handler on a port it has not opened
   const pick = $("midi-in");
-  const hook = () => {
-    const names = [...midi.inputs.values()].map((i) => i.name).filter((n) => !isFm1Port(n));
+  // (rebuilt when an input comes or goes, or the picker changes: not on every port's opening, which
+  // fires a state change too)
+  let seen = null;
+  const hook = (force) => {
+    const names = [...midi.inputs.values()].filter((i) => i.state === "connected").map((i) => i.name);
+    if (!force && seen === names.join("\n")) return;
+    seen = names.join("\n");
     const want = stored("fm1sid.midiIn") || "";
-    pick.replaceChildren(el("option", null, "All keyboards"), ...names.map((n) => el("option", null, n)));
+    pick.replaceChildren(el("option", null, "All MIDI inputs"),
+      ...names.map((n) => el("option", null, isFm1Port(n) ? `${n} (your FM-1)` : n)));
     pick.options[0].value = "";
+    names.forEach((n, i) => { pick.options[i + 1].value = n; });
     pick.value = names.includes(want) ? want : "";
     pick.hidden = names.length < 2;
     const heard = [];
     for (const input of midi.inputs.values()) {
-      if (isFm1Port(input.name)) continue;
-      if (pick.value && input.name !== pick.value) {
-        input.onmidimessage = null;
-        continue;
-      }
-      heard.push(input.name);
-      input.onmidimessage = onNote;
-      input.open().catch(() => {});
+      const on = input.state === "connected" && (!pick.value || input.name === pick.value);
+      listen(input, "keys", on ? onNote : null);
+      if (on) heard.push(input.name);
     }
     $("midi-state").textContent = heard.length ? `listening to ${heard.join(", ")}` : "no MIDI input found: plug one in";
   };
-  pick.onchange = () => { store("fm1sid.midiIn", pick.value); hook(); };
-  midi.onstatechange = hook;
-  hook();
+  pick.onchange = () => { store("fm1sid.midiIn", pick.value); hook(true); };
+  midi.onstatechange = () => hook(false);
+  hook(true);
   b.textContent = "MIDI connected";
   b.disabled = true;
   if (!node) start(initial);

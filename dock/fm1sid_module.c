@@ -19,7 +19,22 @@ static void draw_step(uint32_t full)        /* the host's main loop, often: the 
     hbp_leds();
 }
 
-static void ui(uint32_t ev, int32_t arg) { hbf_event(ev, arg); }
+/* the keys go out as MIDI notes as well, as every fm1-dock synth's do (CS-1, Scintilla, OberVave): F3 = 53
+ * and the synth's octave, the note a key started ending it; the FM-1 plays the FM-1 on FM-1 SID's page, or
+ * a DAW */
+static uint8_t key_out[27];
+static void ui(uint32_t ev, int32_t arg)
+{
+    uint32_t k = HB_EV_ID(ev);
+    if (HB_EV_KIND(ev) == HB_EV_KEY_DOWN && k < 27u) {
+        int32_t n = 53 + (int32_t)k + 12 * octave;
+        key_out[k] = (uint8_t)(n < 0 ? 0 : n > 127 ? 127 : n);
+        H->midi_send(0x90u, key_out[k], arg > 0 ? (uint32_t)arg : 100u);
+    } else if (HB_EV_KIND(ev) == HB_EV_KEY_UP && k < 27u) {
+        H->midi_send(0x80u, key_out[k], 0);
+    }
+    hbf_event(ev, arg);
+}
 static void midi(uint32_t st, uint32_t d1, uint32_t d2) { hbf_midi(st, d1, d2); }
 static void note(uint32_t ch, uint32_t key, uint32_t vel) { hbf_midi(0x90u | (ch & 15u), key, vel); }
 static void cc(uint32_t ch, uint32_t num, uint32_t val) { hbf_midi(0xB0u | (ch & 15u), num, val); }
