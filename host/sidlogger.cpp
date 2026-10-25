@@ -6,6 +6,9 @@
 // Links a libsidplayfp 2.6.0 built with tools/libsidplayfp-2.6.0-sidlog.patch (ext/, see
 // tools/fetch_ext.sh): the patch calls fm1sid_write_hook with the C64 clock on every SID write.
 // Cycles count from the first write (libsidplayfp's power-on stretch is dropped).
+// FM1SID_KERNAL=FILE loads an 8 KB KERNAL ROM image: without one libsidplayfp has no KERNAL
+// code but its IRQ entry, and RSID tunes that leave through $EA31 / $EA81 run into a BRK;
+// build/psidlog --kernal writes the stub player/psid.c runs RSID tunes on.
 // libsidplayfp is GPL-2.0-or-later, so this program's binary is too.
 #include <cstdint>
 #include <cstdio>
@@ -70,6 +73,16 @@ int main(int argc, char **argv)
     cfg.forceSidModel = argc > 5;
     cfg.defaultC64Model = SidConfig::PAL;
     cfg.forceC64Model = true;
+    static uint8_t kernal[8192];
+    if (const char *k = getenv("FM1SID_KERNAL")) {
+        FILE *kf = fopen(k, "rb");
+        if (!kf || fread(kernal, 1, sizeof kernal, kf) != sizeof kernal) {
+            fprintf(stderr, "sidlogger: %s: not an 8 KB KERNAL image\n", k);
+            return 1;
+        }
+        fclose(kf);
+        engine.setRoms(kernal, nullptr, nullptr);
+    }
     if (!engine.config(cfg) || !engine.load(&tune)) {
         fprintf(stderr, "sidlogger: %s\n", engine.error());
         return 1;

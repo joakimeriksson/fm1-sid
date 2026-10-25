@@ -1,10 +1,12 @@
-/* player/psidlog.c - player/psid.c on the host: a PSID tune's register stream as sidlog v2,
+/* player/psidlog.c - player/psid.c on the host: a PSID or RSID tune's register stream as sidlog v2,
  * to check the player (the FM-1 firmware runs the same code) against libsidplayfp's stream
  * (build/sidlogger) and its audio.
  *   build/psidlog TUNE.sid OUT.sidlog [song] [seconds]
+ *   build/psidlog --kernal OUT.bin      (the KERNAL stub RSID tunes run on, for build/sidlogger)
  * SPDX-License-Identifier: BSD-2-Clause */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "psid.h"
 
 typedef struct { uint32_t cyc; uint8_t chip, reg, val, pad; } ev_t;
@@ -30,6 +32,14 @@ int main(int argc, char **argv)
     FILE *f;
     size_t n;
     uint32_t song, secs, total, t, keep = 0, i;
+    if (argc == 3 && !strcmp(argv[1], "--kernal")) {
+        static uint8_t rom[8192];
+        psid_kernal(rom);
+        f = fopen(argv[2], "wb");
+        if (!f || fwrite(rom, 1, sizeof rom, f) != sizeof rom) { perror(argv[2]); return 1; }
+        fclose(f);
+        return 0;
+    }
     if (argc < 3) {
         fprintf(stderr, "usage: %s TUNE.sid OUT.sidlog [song] [seconds]\n", argv[0]);
         return 2;
@@ -39,7 +49,7 @@ int main(int argc, char **argv)
     n = fread(buf, 1, sizeof buf, f);
     fclose(f);
     if (psid_load(p, buf, (uint32_t)n, wr, 0)) {
-        fprintf(stderr, "%s: not a PSID tune\n", argv[1]);
+        fprintf(stderr, "%s: not a PSID / RSID tune (or one that needs BASIC)\n", argv[1]);
         return 1;
     }
     song = argc > 3 ? (uint32_t)atoi(argv[3]) : 0;
