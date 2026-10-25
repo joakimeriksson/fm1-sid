@@ -13,6 +13,21 @@ const MODULE = 0x23;
 const CHUNK = 256;
 const NAMES = ["felucca", "fm1-dock", "harbor", "fm-1"];   // the USB-MIDI names fm1-dock goes by
 export const isFm1Port = (name) => NAMES.some((n) => name.toLowerCase().includes(n));
+
+// several listeners on one input (an FM-1's port carries the answers to the frames and its keys' notes):
+// one onmidimessage handing every message to each (setting it opens the port; a listener alone did not
+// get messages in Chrome), and the port opened explicitly as well
+const taps = new WeakMap();
+export function listen(input, key, fn) {
+  let t = taps.get(input);
+  if (!t) {
+    t = new Map();
+    taps.set(input, t);
+  }
+  if (fn) t.set(key, fn); else t.delete(key);
+  input.onmidimessage = t.size ? (ev) => { for (const f of t.values()) f(ev); } : null;
+  if (t.size) input.open().catch(() => {});
+}
 const STATUS = ["done", "bad CRC", "bad header", "too big", "no space", "flash error", "verify failed",
   "data missing", "not started", "not found", "bad message", "refused"];
 // FM-1 SID's own refusals (firmware/fm1sid.c usb_file)
@@ -96,7 +111,7 @@ export class FM1Link {
     this.output = output;
     this.seq = 0;
     this.waiting = null;
-    this.input.onmidimessage = (ev) => this.receive(ev.data);   // (setting it opens the port; a listener does not)
+    listen(input, "fm1link", (ev) => this.receive(ev.data));
   }
 
   // the first FM-1 among the MIDI ports (null: none); want: a port whose name has this in it instead
@@ -114,7 +129,7 @@ export class FM1Link {
   }
 
   get name() { return this.output.name; }
-  close() { this.input.onmidimessage = null; }
+  close() { listen(this.input, "fm1link", null); }
 
   receive(data) {
     if (data.length < 7 || data[0] !== 0xf0 || data[1] !== MAN[0] || data[2] !== MAN[1] || data[3] !== MAN[2]) return;
