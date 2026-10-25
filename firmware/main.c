@@ -1,5 +1,6 @@
-/* firmware/main.c - a SID player for the M-VAVE FM-1: C64 tunes (PSID) played by their own
- * 6502 code (player/psid.c, floooh's m6502) on the FM-1's CPU, the SID rendered by reSID 0.16
+/* firmware/main.c - a SID player for the M-VAVE FM-1: C64 tunes (PSID, RSID) played by their own
+ * 6502 code (player/psid.c, player/cpu6510.h) on the FM-1's CPU, and GoatTracker 2 songs (.sng)
+ * by GoatTracker's playroutine (player/gt2.c, from the file in flash); the SID rendered by reSID 0.16
  * (fast) or by fm1-sid's own model (src/sid.c), the three voices, sync / ring and the filter
  * drawn on the 240x240 LCD.
  *
@@ -14,6 +15,16 @@
  * ARP = clear the track. Both: EDIT = engine (reSID / own); FX = the effects page (firmware/fx.c:
  * KNOB1 chorus, KNOB2 delay, KNOB3 its time, KNOB4 reverb, SELECT the delay's feedback, PRESETS
  * 6581 / 8580; FX again leaves it). Hold OCT- and OCT+ for 3 s: the USB update mode (UBOOT).
+ * Hold HOME for 5 s (or while switching on): USB MODE, everything off but USB (usb_mode).
+ * MASTER is the volume (master_poll); the keys and buttons light while held, PLAY / REC / FX /
+ * SEQ also while playing, recording, on the FX page, in the editor or the sequencer, and the
+ * others that do something on the page glow dim (leds).
+ * SEQ in the player: the GoatTracker editor (firmware/tracker.c) on the song playing; its songs
+ * are saved in flash (firmware/store.c) and join the player's list.
+ * USB: a class-compliant USB-MIDI device, "FM-1 SID" (Felucca's driver): notes play the synth and
+ * the editor, a program change picks the player's tune, Felucca's soft key SysEx restarts into
+ * the USB update mode; and the installers (Felucca's web installer, tools/fm1_install.py) find it
+ * and install another firmware through it as through Felucca (its src/ota.c).
  *
  * Timing: the main loop runs the play routine up to three frames ahead and queues its SID
  * writes with their C64 cycle; the audio interrupt (ALNK0, 128 frames a half buffer) clocks
@@ -30,8 +41,15 @@
 #include "fm1_lcd_hw.h"
 #include "fm1_audio.h"
 #include "fm1_input.h"
+#include "fm1_adc.h"
 #include "sid.h"
 #include "psid.h"
+#include "gt2.h"
+#ifndef DOCK_BOOT
+#define DOCK_BOOT 0                      /* 1: built for fm1-dock's boot slot (firmware/build.sh) */
+#endif
+#define FELUCCA_OTA (!DOCK_BOOT)          /* installers' updates through FM-1 SID (Felucca's ota.c) */
+#define FELUCCA_ID "FM-1_900"               /* the identity it answers (= the package's, tools/fwsc.py) */
 #include "sidsynth.h"
 
 void *memset(void *d, int c, unsigned long n) { unsigned char *p = d; while (n--) *p++ = (unsigned char)c; return d; }
@@ -52,19 +70,23 @@ int memcmp(const void *a, const void *b, unsigned long n)
  * count, u32 start (bits 0-15 the first entry, bit 16 the own model instead of reSID, bits
  * 17-18 the chip for every tune: 0 the tune's header, 1 6581, 2 8580, bit 19 start in the
  * synth mode), then per entry u32
- * offset (from the pack), length, song (0: the tune's start song); little-endian. Without one:
- * the firmware's own tune (tools/housetune.py). */
+ * offset (from the pack), length, song (0: the tune's start song); little-endian. An entry is a
+ * PSID / RSID file or a GoatTracker 2 song (.sng: song = its subtune, from 1). Without one: the
+ * firmware's own tune (tools/housetune.py). */
 extern const uint8_t _pack[];
 #define MAXTUNES 256u
 #define PACK_MAX 0x80000u
 static const uint8_t *tune_ptr[MAXTUNES];
 static uint32_t tune_len[MAXTUNES], tune_song[MAXTUNES], ntunes, first_tune, pack_flags;
+static int8_t tune_slot[MAXTUNES];          /* a song saved in flash: its slot (the pack's: -1) */
+static uint32_t npack, pack_end;            /* the pack's entries; where the image and pack end */
 
 static uint32_t rd32(const uint8_t *b) { return b[0] | b[1] << 8 | b[2] << 16 | (uint32_t)b[3] << 24; }
 
 static void load_pack(void)
 {
     uint32_t n, i;
+    pack_end = (uint32_t)_pack;
     if (!memcmp(_pack, "SIDPACK1", 8)) {
         n = rd32(_pack + 8);
         first_tune = rd32(_pack + 12) & 0xFFFFu;
@@ -77,15 +99,22 @@ static void load_pack(void)
             tune_ptr[ntunes] = _pack + off;
             tune_len[ntunes] = len;
             tune_song[ntunes] = rd32(e + 8);
+            tune_slot[ntunes] = -1;
+            if ((uint32_t)_pack + off + len > pack_end)
+                pack_end = (uint32_t)_pack + off + len;
             ntunes++;
         }
+        if ((uint32_t)_pack + 16u + 12u * n > pack_end)
+            pack_end = (uint32_t)_pack + 16u + 12u * n;
     }
     if (!ntunes) {
         tune_ptr[0] = HOUSE;
         tune_len[0] = sizeof HOUSE;
         tune_song[0] = 0;
+        tune_slot[0] = -1;
         ntunes = 1;
     }
+    npack = ntunes;
     if (first_tune >= ntunes)
         first_tune = 0;
 }
@@ -106,6 +135,13 @@ void rs_env(unsigned char env[3]);
 static int32_t abuf[2u * HALF_WORDS] __attribute__((aligned(4)));
 static uint8_t psid_mem[70000] __attribute__((aligned(8)));   /* psid_t (64 KB RAM inside) */
 #define P ((psid_t *)psid_mem)
+#define G ((gt2_t *)psid_mem)               /* or a GoatTracker song's index and player (7.4 KB), and
+                                             * in the editor the song's pool after it */
+static uint32_t song_tail;                  /* bytes at psid_mem's end holding a saved song (song_ram) */
+
+static uint8_t gt;                          /* the tune playing is a GoatTracker song */
+static uint8_t trk;                         /* the GoatTracker editor is up (firmware/tracker.c) */
+typedef char gt2_fits[GT2_SIZE_MAX <= sizeof psid_mem ? 1 : -1];
 static sid_t own;
 
 typedef struct { uint32_t cyc; uint8_t reg, val; } ev_t;
@@ -166,6 +202,79 @@ static uint8_t f_route[4], f_res[4];        /* each instance's filter routing an
 static uint8_t parts_req, seq_req;          /* main loop: what it asked the ISR for */
 static uint8_t key_tgt[27];                 /* the instance each held key plays */
 
+#include "store.c"
+
+/* the player's list: the pack's tunes, then the songs saved in flash (read into RAM to play:
+ * song_ram) */
+static void list_store(void)
+{
+    uint32_t i, len;
+    ntunes = npack;
+    for (i = 0; i < ST_SLOTS && ntunes < MAXTUNES; i++) {
+        if (!(len = st_song(i, 0, 0)))
+            continue;
+        tune_ptr[ntunes] = 0;
+        tune_len[ntunes] = len;
+        tune_song[ntunes] = 0;
+        tune_slot[ntunes] = (int8_t)i;
+        ntunes++;
+    }
+    if (play_idx >= ntunes)
+        play_idx = 0;
+}
+
+/* a song saved in flash into RAM, at psid_mem's end (after G's index and the pool's start) */
+static const uint8_t *song_ram(uint32_t slot, uint32_t *len)
+{
+    uint32_t n = st_song(slot, 0, 0), room = sizeof psid_mem - GT2_SIZE_MAX, at;
+    song_tail = 0;
+    if (!n || n > room)
+        return 0;
+    at = (uint32_t)(sizeof psid_mem - n) & ~3u;
+    if (st_song(slot, psid_mem + at, n) != n)
+        return 0;
+    song_tail = (uint32_t)sizeof psid_mem - at;
+    *len = n;
+    return psid_mem + at;
+}
+
+/* ------------------------------------------------------------------------- USB-MIDI --- */
+/* Felucca's USB driver (ext/Felucca/firmware/src/usb.c; firmware/build.sh makes it
+ * build/fw/usb_fm1sid.c, named FM-1 SID): a class-compliant USB-MIDI device, its SIE polled from
+ * the TIMER5 ISR at 2 kHz. MIDI in waits in its ring for the main loop (midi_in); its soft key
+ * SysEx F0 22 24 35 7D F7 restarts the FM-1 into the USB update mode (the main loop). */
+#define RING_PUBLISH() __asm__ volatile("" ::: "memory")
+#include "usb_fm1sid.c"
+
+#if FELUCCA_OTA
+/* Updates as Felucca takes them (ext/Felucca's src/ota.c, build/fw/ota_fm1sid.c, unchanged): an
+ * installer's handshake gets the identity FM-1_900, its upgrade command (F0 22 24 35 7F F7) a
+ * session in which FM-1 SID reads parts of the package, checks it, stages the package's update
+ * loader at 0xE0000 (Felucca's OTA area) and, once the installer says "success", restarts into
+ * it; the loader writes the package. Anything else leaves FM-1 SID as it was. These are the
+ * hooks Felucca's src/ota_hw.c gives it, with FM-1 SID's screen. */
+#include "ota_fm1sid.c"
+static uint32_t ota_now_ms(void) { return ms; }
+static void ota_idle(void) { fm1_wdt_feed(); }
+static int ota_in_area(uint32_t off, uint32_t n) { return FL_IN(off, n, OTA_AREA, OTA_AREA + OTA_AREA_LEN); }
+static int ota_erase(uint32_t off)
+{
+    uint32_t took;
+    if (!ota_in_area(off, 0x1000u) || (off & 0xFFFu))
+        return -8;
+    return fl_erase4k(off, &took);
+}
+static int ota_prog(uint32_t off, const void *p, uint32_t n)
+{
+    if (!ota_in_area(off, n))
+        return -8;
+    return fl_write(off, p, n);
+}
+static int ota_fread(uint32_t off, void *p, uint32_t n) { return st_read(off, p, n); }
+static void ota_show(uint32_t step, int32_t code);
+static void ota_commit(const uint8_t *parm);
+#endif
+
 /* ------------------------------------------------------------------- the play routine --- */
 static void on_write(void *user, uint32_t cycle, uint32_t reg, uint32_t val)
 {
@@ -181,12 +290,20 @@ static void on_write(void *user, uint32_t cycle, uint32_t reg, uint32_t val)
 
 static void generate(void)
 {
-    while (running && !mode && gen_cyc - play_cyc < 3u * PSID_PAL_FRAME && ev_head - ev_tail < NEV - 600u) {
+    while (running && !mode && gen_cyc - play_cyc < (trk ? 2u : 3u) * PSID_PAL_FRAME &&
+           ev_head - ev_tail < NEV - 600u) {   /* (the editor: 40 ms ahead, its keys heard sooner) */
         call_base = gen_cyc;
-        psid_play(P);
-        gen_cyc += psid_period(P);
+        if (gt) {
+            gt2_play(G);
+            gen_cyc += GT2_FRAME;
+        } else {
+            psid_play(P);
+            gen_cyc += psid_period(P);
+        }
     }
 }
+
+static const psid_info_t *tune_info(void) { return gt ? gt2_info(G) : psid_info(P); }
 
 /* ------------------------------------------------------------------------ the synth --- */
 /* the track whose patch has the filter: the chip has one, the first such track sets it */
@@ -335,6 +452,13 @@ static void syn_step(void)
                 if (trk_on[g] && (trk_patch[g] == KIT || trk_on[g] == c->arg))
                     trk_note(g, 0);
             }
+        } else if (c->op == CMD_ALLOFF) {   /* (MIDI in broke off: no note left hanging) */
+            sidsyn_all_off(&inst[POLY]);
+            for (i = 0; i < NTRK; i++)
+                if (live[i]) {
+                    live[i] = 0;
+                    trk_note(i, 0);
+                }
         } else if (c->op == CMD_PATCH) {
             load_patch(g);
         } else if (c->op == CMD_PARTS) {    /* the voices to the tracks, or back to the poly synth */
@@ -498,6 +622,14 @@ void fm1_timer5_irq(void)
     while (acc >= 24000u) {
         acc -= 24000u;
         ms++;
+    }
+    fm1_ms = ms;
+    {
+        static uint32_t div;               /* (10 kHz: the USB poll at 2 kHz, as Felucca's) */
+        if (++div >= 5u) {
+            div = 0;
+            usb_poll();
+        }
     }
 }
 
@@ -809,13 +941,19 @@ static void draw_seq(void)
                        "PLAY run  REC record  GLO clr", C_GREY);
 }
 
+static void trk_draw(void);
+
 static void draw(void)
 {
     static const char *const WAVES[4] = {"T", "S", "P", "N"};
     char line[64], *p;
     uint8_t env[3];
     uint32_t v, i, load;
-    const psid_info_t *info = psid_info(P);
+    const psid_info_t *info = tune_info();
+    if (trk && !fx_view) {
+        trk_draw();
+        return;
+    }
     if (engine) {
         env[0] = own.v[0].env; env[1] = own.v[1].env; env[2] = own.v[2].env;
     } else {
@@ -825,6 +963,8 @@ static void draw(void)
     /* header */
     fill(0, 0, 240, 14, C_LBLUE);
     text(2, 1, "FM-1 SID", C_WHITE);
+    if (usb.config && !usb.suspended)       /* a computer has it as a MIDI device */
+        text(2 + 8 * 9, 1, "USB", C_LGREEN);
     text(240 - 8 * 13 - 2, 1, engine ? "fm1-sid model" : "  reSID  0.16", C_YELLOW);
     if (mode && seq_view && !fx_view) {
         /* (the sequencer's page draws its own lines) */
@@ -957,10 +1097,20 @@ static void start(uint32_t idx, int header)
     fm1_delay_ms(4);                        /* the ISR finishes the half it is in */
     mode = 0;
     play_idx = idx % ntunes;
-    if (psid_load(P, tune_ptr[play_idx], tune_len[play_idx], on_write, 0))
-        psid_load(P, HOUSE, sizeof HOUSE, on_write, 0);   /* not a PSID: play ours instead */
+    {
+        const uint8_t *t = tune_ptr[play_idx];
+        uint32_t len = tune_len[play_idx];
+        song_tail = 0;
+        if (tune_slot[play_idx] >= 0)       /* saved in flash: into RAM first */
+            t = song_ram((uint32_t)tune_slot[play_idx], &len);
+        gt = t && !memcmp(t, "GTS", 3);
+        if (gt && gt2_load(G, t, len, on_write, 0))
+            gt = 0;
+        if (!gt && (!t || psid_load(P, t, len, on_write, 0)))
+            psid_load(P, HOUSE, sizeof HOUSE, on_write, 0);   /* not one we play: ours instead */
+    }
     if (header)
-        model = (pack_flags >> 1 & 3u) ? (pack_flags >> 1 & 3u) - 1u : psid_info(P)->model;
+        model = (pack_flags >> 1 & 3u) ? (pack_flags >> 1 & 3u) - 1u : tune_info()->model;
     if (engine)
         sid_init(&own, model ? SID_8580 : SID_6581, SID_CLOCK_PAL, FS_HZ);
     else
@@ -971,8 +1121,8 @@ static void start(uint32_t idx, int header)
     play_cyc = 0;
     cyc_frac = 0;
     call_base = 0;
-    song = tune_song[play_idx] ? tune_song[play_idx] : psid_info(P)->start;
-    t = psid_init(P, song ? song : 1u);
+    song = tune_song[play_idx] ? tune_song[play_idx] : tune_info()->start;
+    t = gt ? gt2_init(G, song) : psid_init(P, song ? song : 1u);
     gen_cyc = (t / PSID_PAL_FRAME + 1u) * PSID_PAL_FRAME;
     played_ms = 0;
     running = 1;
@@ -1115,20 +1265,311 @@ static void synth_keys(uint32_t e)
     }
 }
 
+#include "tracker.c"
+
+/* MASTER: the pot (SARADC channel 4), read from the main loop as Felucca's src/master.c does:
+ * x16, smoothed (an eighth of the way a read), its square the level (fx.c's output, Q12) */
+static int32_t master_knob = -1;
+static void master_poll(void)
+{
+    int32_t a = fm1_adc_read(FM1_ADC_MASTER);
+    uint32_t k;
+    if (a < 0)
+        return;
+    master_knob = master_knob < 0 ? a * 16 : master_knob + (a * 16 - master_knob) / 8;
+    k = (uint32_t)master_knob / 16u;
+    fx_master = (int32_t)((k * k) >> 8);
+}
+
+/* the LEDs: a key or button lights while held; PLAY while playing, REC while recording, FX on
+ * the effects page, SEQ in the editor or on the sequencer's page, SCL / ENV / LFO the sequencer's
+ * track, LFO the editor's channel muted. The others that do something on
+ * this page glow dim (fm1_input.h fm1_led_dim), so the black FM-1's buttons can be found in the
+ * dark: the player's OCT- OCT+ FX EDIT HOME SEQ PLAY, the synth's buttons and keys, all of them in
+ * the editor; on the FX page FX EDIT HOME (and the synth's keys); in USB mode HOME OCT- OCT+ */
+static uint8_t in_usb;                      /* usb_mode is running */
+static void leds(void)
+{
+    static uint32_t lit_b, lit_n, dim_b, dim_n, ready;
+    uint32_t b = fm1_in.buttons, n = fm1_in.notes, gb, gn = 0, c, r;
+    uint8_t nl[FM1_NCOL] = {0}, nd[FM1_NCOL] = {0};
+    if (in_usb) {
+        gb = 1u << 8 | 3u;
+    } else if (fx_view) {
+        gb = 1u << 2 | 1u << 6 | 1u << 8;
+        gn = mode && !trk ? 0x7FFFFFFu : 0u;
+    } else if (trk) {
+        gb = 0x3FFFu;
+        gn = 0x7FFFFFFu;
+    } else if (mode) {
+        gb = 0x3FFFu & ~(1u << 9);          /* (SAVE: nothing here) */
+        gn = 0x7FFFFFFu;
+    } else {
+        gb = 3u | 1u << 2 | 1u << 6 | 1u << 8 | 1u << 11 | 1u << 12;
+    }
+    if (!in_usb && (trk ? gt2_playing(G) : mode ? seq_on : running))
+        b |= 1u << 12;
+    if (!in_usb && (trk ? tk_rec : mode && rec))
+        b |= 1u << 13;
+    if (!in_usb && fx_view)
+        b |= 1u << 2;
+    if (!in_usb && (trk || (mode && seq_view)))
+        b |= 1u << 11;
+    if (!in_usb && !trk && mode && parts_req)   /* SCL / ENV / LFO: the sequencer's track */
+        b |= 1u << (3u + sel);
+    if (!in_usb && trk && G->chn[tk_chn()].mute)   /* LFO: the editor's channel is muted */
+        b |= 1u << 5;
+    gb &= ~b;
+    gn &= ~n;
+    if (ready && b == lit_b && n == lit_n && gb == dim_b && gn == dim_n)
+        return;
+    for (c = 0; c < FM1_NCOL; c++)
+        for (r = 1; r < 5u; r++) {
+            int id = FM1_KEYMAP[r][c];
+            uint32_t on, glow;
+            if (id < 0)
+                continue;
+            on = id < 14 ? b >> id & 1u : n >> (id - 14) & 1u;
+            glow = id < 14 ? gb >> id & 1u : gn >> (id - 14) & 1u;
+            nl[c] |= (uint8_t)(on << r);
+            nd[c] |= (uint8_t)(glow << r);
+        }
+    for (c = 0; c < FM1_NCOL; c++)          /* (the glow first: lit -> glow is never dark) */
+        fm1_led_dim[c] = nd[c];
+    for (c = 0; c < FM1_NCOL; c++)
+        fm1_led[c] = nl[c];
+    lit_b = b; lit_n = n; dim_b = gb; dim_n = gn;
+    ready = 1;
+}
+
+/* ------------------------------------------------------------------------ MIDI in --- */
+/* USB-MIDI's notes: the synth (as its keys, at their own pitch) or the editor (firmware/tracker.c);
+ * a program change: the player's tune */
+static uint8_t midi_tgt[128];               /* the synth instance each note plays */
+
+static void midi_note(uint32_t n, int on)
+{
+    if (trk) {
+        trk_midi(n, on);
+    } else if (mode && on) {
+        uint32_t tgt = parts_req ? sel : POLY;
+        midi_tgt[n] = (uint8_t)tgt;
+        syn_cmd(CMD_ON, n, tgt);
+        if (rec && tgt < NTRK)
+            record(n);
+    } else if (mode) {
+        syn_cmd(CMD_OFF, n, midi_tgt[n]);
+    }
+}
+
+static void midi_in(void)
+{
+    if (midi_in_overflow) {                 /* a broken stream: dropped, the notes let go */
+        mi_r = mi_w;
+        midi_in_overflow = 0;
+        if (mode && !trk)
+            syn_cmd(CMD_ALLOFF, 0, POLY);
+        return;
+    }
+    while (mi_r != mi_w) {
+        uint32_t pkt, st, d1, d2;
+        RING_PUBLISH();
+        pkt = midi_in_q[mi_r % MQ];
+        RING_PUBLISH();
+        mi_r++;
+        st = pkt >> 8 & 0xF0u;
+        d1 = pkt >> 16 & 0x7Fu;
+        d2 = pkt >> 24 & 0x7Fu;
+        if (st == 0x90u && d2)
+            midi_note(d1, 1);
+        else if (st == 0x80u || st == 0x90u)
+            midi_note(d1, 0);
+        else if (st == 0xC0u && !mode && !trk)
+            start(d1 % ntunes, 1);
+    }
+}
+
+#if FELUCCA_OTA
+/* ------------------------------------------------------------------ an update (ota.c) --- */
+static void ota_show(uint32_t step, int32_t code)
+{
+    static const char *const STEP[] = {"", "PACKAGE", "CHECK HEAD", "LOADER", "CONFIRM", "RESTART"};
+    const char *t = STEP[step < 6u ? step : 0];
+    char b[24];
+    uint32_t n = 0, t0;
+    fill(0, 0, 240, 240, C_BLUE);
+    text(96, 92, "UPDATE", C_WHITE);
+    if (step >= 9u) {                       /* the session's end without an update: why */
+        uint32_t v = (uint32_t)-code;
+        cat(b, code == 1 ? "DRY RUN OK" : "FAILED -");
+        while (b[n])
+            n++;
+        if (code != 1) {
+            if (v >= 10u)
+                b[n++] = (char)('0' + v / 10u % 10u);
+            b[n++] = (char)('0' + v % 10u);
+            b[n] = 0;
+        }
+        t = b;
+    }
+    while (t[n])
+        n++;
+    text((int)(240u - 8u * n) / 2, 124, t, C_YELLOW);
+    lcd_frame();
+    if (step >= 9u)
+        for (t0 = ms; ms - t0 < 1500u;)
+            fm1_wdt_feed();
+}
+
+static void ota_commit(const uint8_t *parm)
+{
+    bootguard.pending = 0;                  /* (asked for: not a failed boot) */
+    usb_detach();
+    fm1_delay_ms(30);
+    fm1_enter_update(parm);                 /* the record into RAM, a core reset (fm1_sys.h) */
+}
+
+/* the installer's upgrade command: the session, the sound off while it runs (the audio
+ * interrupt renders the SID: it would hold the last note and take the CPU); it returns only
+ * when nothing was installed, and FM-1 SID carries on */
+static void ota_go(void)
+{
+    uint32_t i;
+    fm1_audio_stop();
+    ota_session();
+    for (i = 0; i < 2u * HALF_WORDS; i++)
+        abuf[i] = 0;
+    FM1_ALNK_CON0 |= 0x800u;                /* (the DMA on again: fm1_audio_stop's bit) */
+}
+#endif
+
+/* ------------------------------------------------------------------------- USB mode --- */
+/* Everything off but USB: no sound (the audio interrupt stopped), no player, no SID, only the
+ * USB driver (the TIMER5 interrupt) and, in the main loop, its requests: an installer's
+ * handshake and update (FELUCCA_OTA), the soft key. Whatever load the player puts on the CPU,
+ * here nothing can keep an installer from reaching FM-1 SID. HOME held 5 s, HOME held while
+ * switching on, or the third of three boots in a row that die early; HOME again leaves (back
+ * where it was: the sound on again, the editor's song as it was). The screen counts what USB
+ * does, to tell a dead USB from a busy CPU. */
+static uint8_t boot_usb;                    /* fm1_cstart: the boot guard asks for USB mode */
+
+static void usb_mode_draw(uint32_t hs)
+{
+    char b[40], *p;
+    fill(0, 0, 240, 240, C_BLUE);
+    fill(0, 0, 240, 14, C_LBLUE);
+    text(2, 1, "FM-1 SID", C_WHITE);
+    text(2, 30, "USB MODE", C_YELLOW);
+    text(2, 50, "SOUND AND PLAYER OFF:", C_WHITE);
+    text(2, 66, "AN INSTALLER CAN REACH", C_WHITE);
+    text(2, 82, "FM-1 SID NOW", C_WHITE);
+    p = cat(b, "USB ");
+    cat(p, !usb.up ? "OFF (NO CABLE?)" : usb.config && !usb.suspended ? "CONNECTED" : "WAITING");
+    text(2, 112, b, usb.config ? C_LGREEN : C_ORANGE);
+    p = cat(b, "IN ");
+    p = fmt_u(p, usb.rx_pkts, 0);
+    p = cat(p, "  OUT ");
+    fmt_u(p, usb.tx_pkts, 0);
+    text(2, 130, b, C_LBLUE);
+    p = cat(b, "SETUPS ");
+    p = fmt_u(p, usb.setups, 0);
+    p = cat(p, "  ID ");
+    fmt_u(p, hs, 0);
+    text(2, 146, b, C_LBLUE);
+    text(2, 190, "HOME: BACK", C_GREY);
+    text(2, 206, "OCT- OCT+ 3 S: UBOOT", C_GREY);
+    lcd_frame();
+}
+
+static void usb_mode(void)
+{
+    uint32_t last = 0, hold = 0, hs = 0, rel, e, i;
+    int armed = 0;                          /* HOME let go once (the hold that came here) */
+    fm1_audio_stop();
+    in_usb = 1;
+    for (;;) {
+        fm1_wdt_feed();
+        if (bootguard.pending && ms > 30000u)
+            bootguard.pending = bootguard.failed = 0;   /* (as the main loop) */
+        usb_retry(ms);
+        if (usb.uboot_req) {
+            bootguard.pending = 0;
+            fm1_enter_uboot();
+        }
+#if FELUCCA_OTA
+        {
+            uint32_t w = so_w;
+            ota_service();
+            if (so_w != w)
+                hs++;                       /* (an identity went out) */
+        }
+        if (usb.ota_req) {
+            usb.ota_req = 0;
+            ota_session();                  /* returns only when nothing was installed */
+            last = 0;
+        }
+#endif
+        mi_r = mi_w;                        /* (notes: nothing plays them here) */
+        e = fm1_input_edges(&rel);
+        if (!(fm1_in.buttons & (1u << 8)))
+            armed = 1;
+        else if (armed && (e & (1u << 8)))
+            break;
+        if ((fm1_in.buttons & 3u) == 3u) {  /* OCT- and OCT+ 3 s: the chip's update mode, as always */
+            if (!hold)
+                hold = ms;
+            else if (ms - hold > 3000u) {
+                bootguard.pending = 0;
+                fm1_enter_uboot();
+            }
+        } else {
+            hold = 0;
+        }
+        leds();
+        if (!last || ms - last >= 200u) {
+            last = ms;
+            usb_mode_draw(hs);
+        }
+        __asm__ volatile("idle");
+    }
+    in_usb = 0;
+    for (i = 0; i < 2u * HALF_WORDS; i++)
+        abuf[i] = 0;
+    FM1_ALNK_CON0 |= 0x800u;                /* the sound on again (fm1_audio_stop's bit) */
+}
+
 /* ----------------------------------------------------------------------------- main --- */
 static void fm1_main(void)
 {
-    uint32_t last_draw = 0, last_ms = 0, hold = 0;
+    uint32_t last_draw = 0, last_ms = 0, hold = 0, home_hold = 0;
+    uint8_t home_skip = 0;                  /* the press that left USB mode: not a HOME */
     lcd_init();
     fm1_input_init();
+    fm1_adc_init();
+    (void)fm1_adc_read(FM1_ADC_MASTER);     /* (the first conversion after the pin setup: dropped) */
     fm1_audio_init(abuf, HALF_WORDS, isr_alnk0, 3);
     fm1_timer5_start(isr_timer5, 4);
     fm1_irq_enable_all();
+    usb_start();
+    {
+        uint32_t t0 = ms;                   /* (the keys' first scans: debounced in ~10 ms) */
+        while (ms - t0 < 60u)
+            fm1_wdt_feed();
+    }
+    if (boot_usb || (fm1_in.buttons & (1u << 8)))
+        usb_mode();                         /* HOME held while switching on, or the boot guard */
+    master_poll();                          /* (the level as the knob stands, before a tune starts) */
     load_pack();
+    st_init((uint32_t)pack_end - 0x02000000u + 0x4000u);   /* (flash offset of the XIP address) */
+#if FELUCCA_OTA
+    ota_boot_cleanup();                     /* an update's staged loader left over: erased (as Felucca) */
+#endif
+    list_store();
     engine = pack_flags & 1u;
     start(first_tune, 1);
     if (pack_flags & 8u)
         start_synth();
+    home_skip = (uint8_t)((fm1_in.buttons >> 8) & 1u);   /* (HOME still down from USB mode at boot) */
     for (;;) {
         uint32_t rel, e, now;
         int32_t step;
@@ -1136,26 +1577,52 @@ static void fm1_main(void)
         if (bootguard.pending && ms > 30000u)
             bootguard.pending = bootguard.failed = 0;   /* 30 s up: this boot made it */
         generate();
+        usb_retry(ms);                      /* (a cable plugged in later) */
+        if (usb.uboot_req) {                /* the soft key over USB: the update mode */
+            fm1_audio_stop();
+            bootguard.pending = 0;
+            fm1_enter_uboot();
+        }
+#if FELUCCA_OTA
+        ota_service();                      /* an installer's handshake: the identity */
+        if (usb.ota_req) {                  /* its upgrade command */
+            usb.ota_req = 0;
+            ota_go();
+        }
+#endif
+        midi_in();
         now = ms;
         if (running)
             played_ms += now - last_ms;
         last_ms = now;
         e = fm1_input_edges(&rel);
-        if (e & (1u << 8)) {                /* HOME: the player <-> the synth */
-            if (mode)
+        if ((rel & (1u << 8)) && !home_skip && home_hold && now - home_hold < 1000u) {
+            /* HOME (a short press, on its release: held 5 s it is USB mode): the player <-> the
+             * synth; the editor: leave */
+            if (trk) {
+                if (!tk_dirty || tk_ask(8, "not saved: HOME again leaves"))
+                    tk_leave();
+            } else if (mode) {
                 start(play_idx, 0);
-            else
+            } else {
                 start_synth();
+            }
             e &= ~(1u << 8);
         }
         if (e & (1u << 2))                  /* FX: the effects page */
             fx_view = !fx_view;
         if (fx_view && fx_keys()) {         /* (its encoders are the page's) PRESETS: the chip */
             model = !model;
-            if (mode) start_synth(); else start(play_idx, 0);
+            if (trk) tk_chip(); else if (mode) start_synth(); else start(play_idx, 0);
         }
-        if (mode) {
+        if (trk) {
+            if (!fx_view)
+                trk_keys(e);
+            trk_follow();
+        } else if (mode) {
             synth_keys(e);
+        } else if (e & (1u << 11)) {        /* SEQ: the GoatTracker editor */
+            trk_enter(tune_slot[play_idx]);
         } else {
             step = fm1_enc_take(6) + fm1_enc_take(0);
             if (e & (1u << 1)) step++;
@@ -1168,7 +1635,20 @@ static void fm1_main(void)
         }
         if (e & (1u << 6)) {
             engine = !engine;
-            if (mode) start_synth(); else start(play_idx, 0);
+            if (trk) tk_chip(); else if (mode) start_synth(); else start(play_idx, 0);
+        }
+        /* HOME held 5 s: USB mode */
+        if (fm1_in.buttons & (1u << 8)) {
+            if (!home_hold)
+                home_hold = now ? now : 1u;
+            else if (now - home_hold > 5000u && !home_skip) {
+                usb_mode();
+                home_skip = 1;              /* (HOME is down again: the press that left it) */
+                last_draw = 0;
+            }
+        } else {
+            home_hold = 0;
+            home_skip = 0;
         }
         /* OCT- and OCT+ held 3 s: the USB update mode */
         if ((fm1_in.buttons & 3u) == 3u) {
@@ -1181,8 +1661,10 @@ static void fm1_main(void)
         } else {
             hold = 0;
         }
+        leds();
         if (now - last_draw >= 40u) {
             last_draw = now;
+            master_poll();
             draw();
             lcd_frame();
         }
@@ -1195,6 +1677,7 @@ static void fm1_main(void)
 void fm1_cstart(void)
 {
     extern uint32_t _bss_start[], _bss_end[], _data_start[], _data_end[], _data_load[];
+    extern uint32_t _rt_start[], _rt_end[], _rt_load[];
     typedef void (*ctor_t)(void);
     extern ctor_t __init_array_start[], __init_array_end[];
     uint32_t *w;
@@ -1209,7 +1692,7 @@ void fm1_cstart(void)
     if (bootguard.pending)                  /* the last boot died within its first 30 s */
         bootguard.failed++;
     bootguard.pending = 1;
-    if (bootguard.failed >= 2u) {           /* the third in a row: the USB update mode instead */
+    if (bootguard.failed >= 3u) {           /* and USB mode died too: the chip's update mode */
         bootguard.failed = bootguard.pending = 0;
         fm1_enter_uboot();
     }
@@ -1218,8 +1701,12 @@ void fm1_cstart(void)
         *w = 0;
     for (w = _data_start; w < _data_end; w++)
         *w = _data_load[w - _data_start];
+    for (w = _rt_start; w < _rt_end; w++)  /* (the flash code, firmware/store.c) */
+        *w = _rt_load[w - _rt_start];
+    __asm__ volatile("csync" ::: "memory");
     for (c = __init_array_start; c < __init_array_end; c++)
         (*c)();
     fm1_mailbox_clear();
+    boot_usb = bootguard.failed == 2u;      /* the third boot in a row that dies early: USB mode */
     fm1_main();
 }

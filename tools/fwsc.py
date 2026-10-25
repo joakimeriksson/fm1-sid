@@ -2,13 +2,14 @@
 """The SID player as an FM-1 update package (.fwsc), installable the way community firmwares
 are and bootable by the emulator's page (../web):
     tools/fwsc.py [OUT.fwsc]       (default web/sidplayer.fwsc)
-    tools/fwsc.py OUT.fwsc [--first N] [--own] [--chip 6581|8580] [--synth] TUNE.sid[:SONG] ...
+    tools/fwsc.py OUT.fwsc [--first N] [--own] [--chip 6581|8580] [--synth] TUNE[:SONG] ...
 The app is web/sidplayer.bin (firmware/build.sh: the firmware without a tune pack) plus a tune
 pack (tools/sidpack.py). Without tunes the pack is its own tune (web/house.sid) and starts it in
 the synth mode: an FM-1 that boots it is a synth, silent until a key is played; HOME switches to
 the player and the tune. With tunes it starts in the player on the first (--synth: the synth),
 and they are the tunes it has: there is no way to send it others while it runs, a new set is a
-new package to install. Each tune is checked the way the firmware's psid_load reads it. The
+new package to install. A TUNE is a .sid (PSID / RSID) or a GoatTracker 2 song (.sng); each is
+checked the way the firmware loads it (psid_load, gt2_load). The
 package is Felucca's: its update loader
 (ext/Felucca/firmware/loader, built here with the JieLi toolchain) and tools/fm1pkg_make.py,
 which takes three files of JieLi's AC79 SDK (Apache-2.0; tools/fetch_ext.sh fetches them into
@@ -52,7 +53,8 @@ def main():
             raise SystemExit(f"--first {a.first}: there are {len(tunes)} entries")
     else:
         tunes, flags = [((ROOT / "web" / "house.sid").read_bytes(), 0)], SYNTH
-    app = (ROOT / "web" / "sidplayer.bin").read_bytes() + sidpack.pack(tunes, a.first, flags)
+    base = ROOT / "build" / "dfw" / "sidplayer_base.bin" if os.environ.get("FM1SID_DINGHY") else ROOT / "web" / "sidplayer.bin"
+    app = base.read_bytes() + sidpack.pack(tunes, a.first, flags)   # (FM1SID_DINGHY=1: the Dinghy build)
     if len(app) > 0x8DFBC:
         raise SystemExit(f"{len(app)} bytes: more than the app slot (581564); fewer or shorter tunes")
     for rel, sha in felucca.SDK_SHA256.items():

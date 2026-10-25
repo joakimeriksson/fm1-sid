@@ -3,9 +3,9 @@
 #   firmware/build.sh   -> build/fw/sidplayer.bin (app.bin for XIP 0x02000120)
 #                          build/fw/sidplayer_xip.bin (+0x120 pad, for fm1-emu --bin)
 #                          build/fw/sidplayer_base.bin (no tune pack: the web page appends one)
-#   HARBOR_BOOT=1 firmware/build.sh -> build/fw_boot/sidplayer_base.bin: the same for fm1-harbor's boot
+#   DOCK_BOOT=1 firmware/build.sh -> build/fw_boot/sidplayer_base.bin: the same for fm1-dock's boot
 #                          slot (flash 0x15000..0x93000, XIP 0x02011000); tools/sidpack.py --boot adds the
-#                          tunes, fm1-harbor's tools/hbboot.py make ... --no-data makes the .hrbr
+#                          tunes, fm1-dock's tools/hbboot.py make ... --no-data makes the .dock
 # Needs ext/ (tools/fetch_ext.sh: reSID 0.16, chips/m6502.h, Felucca's hal). The tunes come
 # after the image as a tune pack (tools/sidpack.py); without one it plays its own tune.
 # SPDX-License-Identifier: GPL-3.0-only
@@ -16,11 +16,12 @@ O=build/fw
 BASE=0x02000120                            # where the image runs (XIP), and the room it has
 SLOT=0x8DFBC
 LD=firmware/app.ld
-if [ "${HARBOR_BOOT:-0}" = 1 ]; then
+if [ "${DOCK_BOOT:-0}" = 1 ]; then
     O=build/fw_boot
     BASE=0x02011000
     SLOT=0x7E000
     LD=$O/app.ld
+    DEFS=-DDOCK_BOOT=1                   # (no flash store: firmware/store.c)
 fi
 F=ext/Felucca/firmware
 L="$TC/pi32v2/lib/r3"
@@ -28,17 +29,31 @@ mkdir -p "$O"
 [ "$LD" = firmware/app.ld ] || sed "s/ORIGIN = 0x02000120, LENGTH = 0x8DFBC/ORIGIN = $BASE, LENGTH = $SLOT/" firmware/app.ld > "$LD"
 grep -q "ORIGIN = $BASE, LENGTH = $SLOT" "$LD"
 python3 firmware/gen_assets.py "$O/assets.h"
+# Felucca's USB driver as FM-1 SID's: its product name (what a computer's MIDI list shows), its
+# register header from -I$F/hal, and, in the fm1-dock build (no FELUCCA_OTA: fm1-dock's slot takes no
+# update through FM-1 SID), the installers' upgrade command (F0 22 24 35 7F F7) doing what the soft
+# key (7D) does, the USB update mode; the rest of ext/Felucca's src/usb.c as it is. The full build
+# takes updates as Felucca does: its src/ota.c, unchanged (firmware/main.c)
+sed -e 's|#include "../hal/fm1_usb.h"|#include "fm1_usb.h"|' \
+    -e "s|static const uint8_t STR2\\[\\] = {16, 3, 'F', 0, 'e', 0, 'l', 0, 'u', 0, 'c', 0, 'c', 0, 'a', 0};|static const uint8_t STR2[] = {18, 3, 'F', 0, 'M', 0, '-', 0, '1', 0, ' ', 0, 'S', 0, 'I', 0, 'D', 0};|" \
+    -e 's|ok = usb.sysex\[i\] == UBOOT_KEY\[i\];|ok = usb.sysex[i] == UBOOT_KEY[i] \|\| (!FELUCCA_OTA \&\& i == 4u \&\& usb.sysex[i] == 0x7Fu);|' \
+    ext/Felucca/firmware/src/usb.c > "$O/usb_fm1sid.c"
+grep -q "'S', 0, 'I', 0, 'D', 0" "$O/usb_fm1sid.c" && grep -q '#include "fm1_usb.h"' "$O/usb_fm1sid.c" &&
+    grep -q '!FELUCCA_OTA && i == 4u && usb.sysex\[i\] == 0x7Fu' "$O/usb_fm1sid.c"
+cp $F/src/ota.c "$O/ota_fm1sid.c"
 CC="$TC/pi32v2/bin/clang -target pi32v2 -mcpu=r3 -mfprev1 -ffp-contract=off"
 CXX="$TC/pi32v2/bin/clang++ -target pi32v2 -mcpu=r3 -mfprev1 -ffp-contract=off"
 CF="-O2 -ffunction-sections -fno-builtin -ffreestanding -Wall -Wno-unused-function -I$TC/pi32v2/include"
 $CC -c $F/crt0.S -o $O/crt0.o
 $CC -c $F/hal/fm1_vec.S -o $O/fm1_vec.o
 $CC -c $F/hal/fm1_isr.S -o $O/fm1_isr.o
-$CC $CF -I$F/hal -Isrc -Iplayer -I$O -c firmware/main.c -o $O/main.o
+$CC $CF ${DEFS:-} -I$F/hal -Isrc -Iplayer -I$O -c firmware/main.c -o $O/main.o
 $CC $CF -c src/sid.c -o $O/own_sid.o
 $CC $CF -Isrc -c src/sidsynth.c -o $O/sidsynth.o
 $CC $CF -Iext/chips -c player/psid.c -o $O/psid.o
-OBJS="$O/crt0.o $O/fm1_vec.o $O/fm1_isr.o $O/main.o $O/own_sid.o $O/sidsynth.o $O/psid.o"
+$CC $CF -c player/gt2.c -o $O/gt2.o
+$CC $CF -c player/gt2edit.c -o $O/gt2edit.o
+OBJS="$O/crt0.o $O/fm1_vec.o $O/fm1_isr.o $O/main.o $O/own_sid.o $O/sidsynth.o $O/psid.o $O/gt2.o $O/gt2edit.o"
 for f in sid voice wave envelope filter extfilt pot wave6581_PST wave6581_PS_ wave6581_P_T wave6581__ST \
          wave8580_PST wave8580_PS_ wave8580_P_T wave8580__ST; do
     $CXX $CF -fno-exceptions -fno-rtti -w -Iext/resid-0.16 -c ext/resid-0.16/$f.cc -o $O/$f.o
@@ -49,6 +64,7 @@ $CXX $CF -fno-exceptions -fno-rtti -Iext/resid-0.16 -c firmware/resid_glue.cc -o
     --start-group "$L/libm.a" "$L/libc.a" "$L/libcompiler_rt.a" --end-group -o $O/sidplayer.elf
 "$TC/common/bin/objcopy" -O binary -j .text $O/sidplayer.elf $O/text.bin
 "$TC/common/bin/objcopy" -O binary -j .data $O/sidplayer.elf $O/data.bin
+"$TC/common/bin/objcopy" -O binary -j .ram_text $O/sidplayer.elf $O/ram_text.bin
 "$TC/common/bin/objdump" -d $O/sidplayer.elf > $O/sidplayer.dis
 "$TC/pi32v2/bin/nm" $O/sidplayer.elf > $O/sidplayer.nm 2>/dev/null || "$TC/common/bin/nm" $O/sidplayer.elf > $O/sidplayer.nm
 python3 - "$O" "$BASE" "$SLOT" <<'PY'
@@ -56,8 +72,10 @@ import sys, re
 o, base, slot = sys.argv[1], int(sys.argv[2], 16), int(sys.argv[3], 16)
 nm = {l.split()[-1]: int(l.split()[0], 16) for l in open(f"{o}/sidplayer.nm") if len(l.split()) == 3}
 text, data = open(f"{o}/text.bin", "rb").read(), open(f"{o}/data.bin", "rb").read()
+rt = open(f"{o}/ram_text.bin", "rb").read()  # (the flash code, copied to RAM at boot)
 gap = nm["_data_load"] - base - len(text)
 img = text + b"\xff" * gap + data
+img += b"\xff" * (nm["_rt_load"] - base - len(img)) + rt
 img += b"\xff" * (-len(img) % 4)
 assert nm["_start"] == base, hex(nm["_start"])
 assert img[:4] == bytes([0x04, 0x81, 0x80, 0x00]), img[:4].hex()

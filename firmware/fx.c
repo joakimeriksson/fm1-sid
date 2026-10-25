@@ -27,6 +27,7 @@ enum { FX_CHO, FX_DLY, FX_TIME, FX_FB, FX_REV, FX_N };
 #define FX_TIMES 4u
 static volatile uint8_t fxs[2][FX_N] = {{0, 0, 2, 6, 0}, {5, 4, 2, 6, 5}};
 static uint8_t fx_view;                    /* main loop: the FX page is up (FX switches) */
+static volatile int32_t fx_master = 4096;  /* MASTER, Q12 (main.c master_poll: the pot) */
 static struct {
     uint32_t dly_w, cho_w, cho_ph;
     int32_t dly_lp, comb_lp[4];
@@ -111,8 +112,8 @@ static void fx_block(const short *in, int32_t *o, uint32_t n)
             l += a;
             r += a;
         }
-        o[2u * i] = clamp16(l) * (1 << OUT_SHIFT);
-        o[2u * i + 1u] = clamp16(r) * (1 << OUT_SHIFT);
+        o[2u * i] = (clamp16(l) * fx_master) >> (12 - OUT_SHIFT);   /* (MASTER: <= 2^23, fits) */
+        o[2u * i + 1u] = (clamp16(r) * fx_master) >> (12 - OUT_SHIFT);
     }
 }
 
