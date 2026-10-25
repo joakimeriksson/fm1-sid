@@ -45,6 +45,12 @@ typedef struct {
 /* the player state is large (64 KB RAM): static storage on the FM-1 */
 uint32_t psid_size(void);
 int psid_load(psid_t *p, const uint8_t *data, uint32_t len, psid_write_fn wr, void *user);   /* 0: ok */
+/* a tune arriving in pieces (over USB): psid_begin takes the file's first `have` bytes (the header, and
+ * the load address when the header's is 0: off + 2) of a file of n, sets the player up as psid_load and
+ * returns the file offset of the byte that goes to the load address (-1: not a tune we play); the caller
+ * then puts file byte off + i at psid_ram(p)[info.load + i] (below 65536) before psid_init */
+int psid_begin(psid_t *p, const uint8_t *head, uint32_t have, uint32_t n, psid_write_fn wr, void *user);
+uint8_t *psid_ram(psid_t *p);
 const psid_info_t *psid_info(const psid_t *p);
 /* run the init routine for song (1-based); returns the cycles it took (RSID: sets the C64 up
  * to enter init and returns 0, the first psid_play runs it) */

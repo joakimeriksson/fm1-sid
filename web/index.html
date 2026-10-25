@@ -132,6 +132,9 @@
   .seg button:not([aria-pressed="true"]):hover { color: var(--ink); background: #1b1c27; }
   .row2 { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--dim); }
   .row2 label { display: flex; align-items: center; gap: 10px; }
+  .row2.send { justify-content: flex-start; }
+  .row2.send .btn { height: 34px; font-size: 13px; }
+  .row2.send .hint { margin: 0; min-width: 0; overflow-wrap: anywhere; }
   input[type=range] { accent-color: var(--c64-hi); width: 130px; }
   input[type=checkbox] { accent-color: var(--c64-hi); width: 16px; height: 16px; }
   .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 16px; }
@@ -172,7 +175,8 @@
   #search::placeholder { color: var(--faint); }
   .btn { border: 1px solid var(--line2); background: var(--card2); border-radius: 10px; padding: 0 14px; cursor: pointer; white-space: nowrap; }
   .btn:hover { background: #262738; }
-  .btn:disabled { opacity: .5; cursor: progress; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .midi-in { height: 34px; max-width: 100%; border: 1px solid var(--line2); background: var(--card2); color: inherit; border-radius: 10px; padding: 0 10px; font: inherit; font-size: 13px; }
   .hint { color: var(--faint); font-size: 13px; margin: 2px 12px 10px; }
   .drop { display: grid; place-items: center; gap: 10px; text-align: center; margin: 10px; padding: 48px 20px; border: 1.5px dashed var(--line2);
           border-radius: 12px; color: var(--dim); cursor: pointer; }
@@ -243,7 +247,7 @@
       <svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="6" fill="#40318d"/><path d="M5 17 9.5 8l4.5 9 3-6 3.5 6" fill="none" stroke="#a59bf0" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg>
       FM-1 · SID
     </a>
-    <nav><a href="#how">How it works</a><a href="#controls">Controls</a><a class="gh" href="https://github.com/joakimeriksson/fm1-emu/tree/master/fm1-sid">Source</a></nav>
+    <nav><a href="#how">How it works</a><a href="#controls">Controls</a><a class="gh" href="https://github.com/joakimeriksson/fm1-sid">Source</a></nav>
   </header>
 
   <section class="intro">
@@ -330,6 +334,10 @@
           <label>Volume <input type="range" id="vol" min="0" max="1.5" step="0.01" value="0.8"></label>
           <label class="only-player"><input type="checkbox" id="advance" checked> Next tune at the end</label>
         </div>
+        <div class="row2 send only-player">
+          <button class="btn" id="send-fm1" type="button" title="The tune playing, to FM-1 SID on your FM-1 over USB: into its memory and played at once, nothing written to flash">Play on my FM-1</button>
+          <span class="hint" id="send-state">over USB, from Chrome or Edge</span>
+        </div>
       </div>
       <div id="np-tags" class="tags only-player" title="Measured from the tune's register stream"></div>
     </article>
@@ -356,6 +364,7 @@
       <div id="pane-synth" role="tabpanel" aria-labelledby="tab-synth" hidden>
         <div class="searchbar">
           <button class="btn" id="midi" type="button">Connect a MIDI keyboard</button>
+          <select id="midi-in" class="midi-in" aria-label="MIDI input" hidden></select>
           <span class="hint" id="midi-state">Web MIDI: Chrome, Edge, Firefox</span>
         </div>
         <p class="hint">fm1-sid’s own instrument driver, the way C64 music drivers play the chip: per-frame wave
@@ -419,7 +428,8 @@
         <b>FX</b> again goes back. The synth starts with a little of each, the player dry.</p></div>
       <div><h3>Keyboard</h3><p><kbd>A</kbd> <kbd>W</kbd> <kbd>S</kbd> … <kbd>'</kbd>: the note keys · <kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd> or <kbd>N</kbd> <kbd>P</kbd>: tune or instrument · <kbd>7</kbd>: HOME · <kbd>Space</kbd>: PLAY · <kbd>0</kbd>: SEQ · <kbd>R</kbd>: REC · <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd>: tracks · <kbd>,</kbd> <kbd>.</kbd>: tempo · <kbd>5</kbd>: EDIT · <kbd>1</kbd>: FX · <kbd>Z</kbd> <kbd>X</kbd>: OCT− / OCT+</p></div>
       <div><h3>fm1-dock</h3><p><b>HOME</b> held 1.5 s: fm1-dock’s list (FM-1 SID and the sine). <b>OCT−</b> held while switching on:
-        the USB rescue, only the updater running.</p></div>
+        the USB rescue, only the updater running. <b>Play on my FM-1</b> sends the tune playing here to FM-1 SID on your
+        FM-1 over USB (Chrome, Edge): into its memory and played at once, nothing written to flash, gone at the next tune.</p></div>
       <div><h3>Links</h3><p>The address bar follows the tune: copy it to send someone straight to it. <code>?t=</code> takes any HVSC path, <code>?mode=synth</code> starts on the synth.</p></div>
     </div>
       <p class="note"><b>On a real FM-1</b>: <a href="sidplayer.fwsc" download>sidplayer.fwsc</a> is this firmware as an
