@@ -184,6 +184,12 @@
   .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
   .drop:focus-within { outline: 2px solid var(--c64-hi); }
   .drop .btn { padding: 8px 16px; }
+  .install { margin-top: 22px; }
+  .install .btn { height: 40px; font-size: 15px; background: var(--c64-deep); border-color: var(--c64); }
+  .install .btn:hover { background: var(--c64); }
+  .install progress:not([hidden]) { display: block; width: min(420px, 100%); height: 8px; margin: 12px 0 0; accent-color: var(--c64-hi); }
+  .install .fm1-install-status { margin: 10px 0 0; min-height: 1.4em; }
+  .install .fm1-install-note { margin: 6px 0 0; font-size: 13px; color: var(--dim); max-width: 70ch; }
   body.dropping .stage { box-shadow: 0 0 0 2px var(--c64-hi); }
 
   /* ---- how it works */
@@ -259,6 +265,7 @@
       Power, then pick a tune from the 61,000 in the High Voltage SID Collection, or switch to the
       synth and play its SID instruments from the keys or a MIDI keyboard, through a stereo chorus,
       delay and reverb.</p>
+    <div class="install" id="install" data-fm1-install="fm1-sid" hidden></div>
   </section>
 
   <section class="deck" aria-label="The emulated FM-1">
@@ -432,7 +439,8 @@
         FM-1 over USB (Chrome, Edge): into its memory and played at once, nothing written to flash, gone at the next tune.</p></div>
       <div><h3>Links</h3><p>The address bar follows the tune: copy it to send someone straight to it. <code>?t=</code> takes any HVSC path, <code>?mode=synth</code> starts on the synth.</p></div>
     </div>
-      <p class="note"><b>On a real FM-1</b>: <a href="sidplayer.fwsc" download>sidplayer.fwsc</a> is this firmware as an
+      <p class="note"><b>On a real FM-1</b>: <a href="#install">Install FM-1 SID on my FM-1</a> at the top of the page writes the
+      latest release over USB (Chrome, Edge). <a href="sidplayer.fwsc" download>sidplayer.fwsc</a> is this page's firmware as an
       update package: fm1-dock with FM-1 SID as its synth, starting in the player with GoatTracker 2’s example songs, Dojo
       first (no HVSC tunes). It installs the way the community firmwares do, and <b>the installers reach it while it runs</b>
       (fm1-dock’s USB), so going back to any other firmware is an ordinary install; <b>OCT−</b> held while switching on is
@@ -456,5 +464,13 @@
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="sid.js"></script>
+<script type="module">
+  // "Install FM-1 SID on my FM-1": the installer and the packages are on fm1-dock's site, the same origin
+  // (joakimeriksson.github.io); elsewhere (a local copy of the page) the button stays hidden
+  const el = document.getElementById("install");
+  import("/fm1-dock/install/fm1install.js")
+    .then(({ installButton }) => { installButton(el, "fm1-sid", { buttonClass: "btn" }); el.hidden = false; })
+    .catch(() => {});
+</script>
 </body>
 </html>
