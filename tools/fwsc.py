@@ -35,7 +35,7 @@ import sidpack                                  # noqa: E402
 
 SYNTH = 8                                       # pack flag: start in the synth mode
 
-PRODUCT = "FM-1_900"                            # the identity Felucca's own development builds carry
+PRODUCT = "FM-1_922"                            # FM-1 SID's own (= firmware/main.c FELUCCA_ID; free on the Firmware Hub)
 
 
 def main():

@@ -49,7 +49,7 @@ CF="-O2 -ffunction-sections -fno-builtin -ffreestanding -Wall -Wno-unused-functi
 $CC -c $D/crt0.S -o $O/crt0.o
 $CC -c $D/hal/fm1_vec.S -o $O/fm1_vec.o
 $CC -c $D/hal/fm1_isr.S -o $O/fm1_isr.o
-$CC $CF $DEFS -DFELUCCA_ID='"FM-1_900"' -DAPP_VER='"1.0"' $HAL -I$D/src -I$D/gen -Isrc -Iplayer -I$O \
+$CC $CF $DEFS -DFELUCCA_ID='"FM-1_922"' -DAPP_VER='"1.0"' $HAL -I$D/src -I$D/gen -Isrc -Iplayer -I$O \
     -c firmware/fm1sid.c -o $O/fm1sid.o
 $CC $CF -c src/sid.c -o $O/own_sid.o
 $CC $CF -Isrc -c src/sidsynth.c -o $O/sidsynth.o
