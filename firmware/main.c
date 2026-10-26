@@ -49,7 +49,7 @@
 #define DOCK_BOOT 0                      /* 1: built for fm1-dock's boot slot (firmware/build.sh) */
 #endif
 #define FELUCCA_OTA (!DOCK_BOOT)          /* installers' updates through FM-1 SID (Felucca's ota.c) */
-#define FELUCCA_ID "FM-1_900"               /* the identity it answers (= the package's, tools/fwsc.py) */
+#define FELUCCA_ID "FM-1_922"               /* the identity it answers (= the package's, tools/fwsc.py) */
 #include "sidsynth.h"
 
 void *memset(void *d, int c, unsigned long n) { unsigned char *p = d; while (n--) *p++ = (unsigned char)c; return d; }
@@ -248,7 +248,7 @@ static const uint8_t *song_ram(uint32_t slot, uint32_t *len)
 
 #if FELUCCA_OTA
 /* Updates as Felucca takes them (ext/Felucca's src/ota.c, build/fw/ota_fm1sid.c, unchanged): an
- * installer's handshake gets the identity FM-1_900, its upgrade command (F0 22 24 35 7F F7) a
+ * installer's handshake gets the identity FM-1_922, its upgrade command (F0 22 24 35 7F F7) a
  * session in which FM-1 SID reads parts of the package, checks it, stages the package's update
  * loader at 0xE0000 (Felucca's OTA area) and, once the installer says "success", restarts into
  * it; the loader writes the package. Anything else leaves FM-1 SID as it was. These are the

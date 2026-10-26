@@ -38,7 +38,7 @@ PY
 HERE=$PWD
 solo() {    # fm1-dock's build of FM-1 SID's own firmware, with what else is given
     (cd "$HB" && HB_MOUNT="$HERE" python3 tools/build.py --modules "$HERE/dock/solo" --name fm1-sid \
-        --app-name "FM-1 SID" --identity FM-1_900 ${RELEASE:+--release "$RELEASE"} "$@")
+        --app-name "FM-1 SID" --identity FM-1_922 ${RELEASE:+--release "$RELEASE"} "$@")
 }
 solo --no-package | tail -3                     # the app without tunes, for the web page (no SDK needed)
 cp "$HB/build/fm1-sid.bin" "$O/fm1sid-base.bin"

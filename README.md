@@ -655,7 +655,7 @@ chip drawn on the LCD.
   installer could reach the FM-1 again until people found the FM-1's own recovery, #22, #23):
   - USB-MIDI and Felucca's update code (`ext/Felucca/firmware/src/ota.c`, copied unchanged by
     `firmware/build.sh`, with `src/ota_hw.c`'s hooks in `firmware/main.c`): the installers'
-    handshake gets the identity FM-1_900, their upgrade command a session that stages the
+    handshake gets the identity FM-1_922, their upgrade command a session that stages the
     package's update loader in Felucca's OTA area (0xE0000..0xE5000) and restarts into it once
     the installer says "success"; anything else leaves FM-1 SID as it was. The soft key (7D):
     the chip's update mode. A staged loader left over is erased at boot, as Felucca does.
