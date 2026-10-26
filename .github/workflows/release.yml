@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# The release, built and signed on GitHub by the Firmware Hub's shared workflow (zvenson/fm1-build): a tag vX.Y
+# builds fm1-sid-X.Y.fwsc (dock/build_solo.sh, on fm1-dock at the commit below), attests it and publishes it as the
+# release of that tag (the hub's "Built from source on GitHub"). A pull request builds without a release, to show
+# that it still builds there. Do not replace the .fwsc on a release by hand: the hub compares it with the attested one.
+name: release
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+jobs:
+  build:
+    uses: zvenson/fm1-build/.github/workflows/build.yml@v1
+    permissions:
+      contents: write        # the release
+      id-token: write        # the signing certificate
+      attestations: write    # the attestation
+    with:
+      build: |
+        set -e
+        sudo apt-get install -y -qq fonts-dejavu-core >/dev/null   # firmware/gen_assets.py's font
+        sh tools/fetch_ext.sh                                       # reSID 0.16 and chips' m6502.h, into ext/
+        FM1_DOCK="$RUNNER_TEMP/fm1-dock"                            # fm1-dock 0.6, the base FM-1 SID builds on
+        git init -q "$FM1_DOCK"
+        git -C "$FM1_DOCK" fetch -q --depth 1 https://github.com/joakimeriksson/fm1-dock e177e83e560483f419baad80511d9dd1acfdeffe
+        git -C "$FM1_DOCK" checkout -q FETCH_HEAD
+        export FM1_DOCK
+        if [ "$GITHUB_REF_TYPE" = tag ]; then export RELEASE="${GITHUB_REF_NAME#v}"; fi
+        dock/build_solo.sh
+      packages: build/solo/fm1-sid*.fwsc

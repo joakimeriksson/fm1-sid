@@ -1,0 +1,7 @@
+{
+  "what": "C64 music on the FM-1: a 6510 runs each tune's own code and reSID plays it, PSID and RSID. A GoatTracker 2 editor on the FM-1 itself with ten GT2 example songs, a SID synth with a sequencer and effects, and any .sid sent from the browser plays at once.",
+  "kinds": [
+    "tracker"
+  ],
+  "play": "https://joakimeriksson.github.io/fm1-emu/fm1-sid/"
+}
