@@ -4,9 +4,15 @@ A feasibility study, with a working prototype: can the **M-VAVE FM-1** pocket sy
 (JieLi AC791N, pi32v2 CPU at 240 MHz, see [the emulator](https://github.com/joakimeriksson/fm1-emu)) be turned into a synth built
 on the **MOS 6581 / 8580 SID**, the Commodore 64's sound chip?
 
-**Just want to use it?** Read the [user guide](#user-guide-fm-1-sid): playing C64 tunes and
-GoatTracker songs on the FM-1, putting your own on it, and writing music with the GoatTracker
-editor. The rest of this file is how it was built and measured.
+**Just want to use it?**
+
+- **Put it on your FM-1** from the browser (Chrome, Edge), over USB: on [fm1-dock's page](https://joakimeriksson.github.io/fm1-dock/#install), install
+  fm1-dock, then **Add FM-1 SID to my fm1-dock**.
+- **Try it first** in the browser, the whole FM-1 emulated: [the FM-1 SID page](https://joakimeriksson.github.io/fm1-emu/fm1-sid/).
+- **Write your own chiptune** on the FM-1 itself, with its GoatTracker 2 editor:
+  [your first chiptune, step by step](#your-first-chiptune-step-by-step).
+- Everything else is in the [user guide](#user-guide-fm-1-sid). The rest of this file is how it was built and
+  measured.
 
 **Where it lives:** this repository is also [fm1-emu](https://github.com/joakimeriksson/fm1-emu)'s
 `fm1-sid/` (a submodule): its web page and some builds use the emulator next to it (`../web`, `../target`,
@@ -61,13 +67,10 @@ order lists, instruments, tables and the song's name, edited with the FM-1's kno
 keys C4-D#5 type hex 0-F) while the song plays. Songs are saved in 16 flash slots and show up in
 the player's list. How to use it is in the [user guide](#user-guide-fm-1-sid).
 
-> **On a real FM-1 (2026-10-24, once)**: this version started, took MIDI over USB and showed
-> the tunes, but they did not play, and the installers could not reach it; the FM-1 went back to
-> M-VAVE's firmware with its own recovery (MvaveFM1Unbricker, from Linux). The cause is not
-> found yet (in the emulator, now with USB, both work). Since then: **USB mode** (HOME held
-> 5 s: everything off but USB, for the installers and to tell a busy CPU from a dead USB),
-> MASTER as the volume and the buttons' lights. Do not give it out until it has played on a
-> real FM-1.
+> **On real FM-1s**: FM-1 SID plays as an fm1-dock module (release 0.3): .sid tunes, RSID tunes, GoatTracker songs,
+> the editor and its saves, and tunes sent from the browser. The first build, a firmware of its own on Felucca's
+> platform, did not play on the first real FM-1 it was tried on (2026-10-24); that is why it runs on fm1-dock,
+> which owns USB, the installers and the rescue.
 
 ## User guide: FM-1 SID
 
@@ -76,9 +79,9 @@ GoatTracker 2 songs (.sng) through an emulated SID chip, and it lets you write y
 GoatTracker songs on the FM-1 itself and save them. It is also a SID synth with a step
 sequencer and effects.
 
-> The RSID tunes, the GoatTracker player and the editor are new. On the one real FM-1 they
-> have been tried on, the tunes did not play ([above](#summary)); have a way back ready
-> (step 4 below) before you install it.
+> Installing firmware is at your own risk. The way back to any other firmware, or to M-VAVE's own, stays open:
+> fm1-dock answers the [FM-1 Firmware Hub](https://fm1.designburgapps.com)'s updater, and the FM-1 has its own
+> recovery ([below](#fm-1-sid-as-its-own-firmware)).
 
 ### Try it without an FM-1
 
@@ -97,28 +100,32 @@ sequencer and effects.
 
 ### Install it on an FM-1: as an fm1-dock module
 
-1. Install [fm1-dock](https://github.com/joakimeriksson/fm1-dock/releases/latest) (its own
-   installer, over USB; the way back to any firmware stays open).
-2. Get `fm1sid.dock`: from fm1-dock's release (FM-1 SID with its own tune), or build one with
-   your tunes: `dock/build.sh TUNE.sid[:SONG] SONG.sng ...` ([dock/](dock/README.md)).
-3. Deploy it: `uv run --with python-rtmidi tools/dock.py deploy fm1sid.dock` in fm1-dock's tree,
-   or drop it on [the console](https://joakimeriksson.github.io/fm1-dock/#console) (Chrome, Edge).
-4. Hold **HOME** for 1.5 s and pick **FM-1 SID**. fm1-dock starts it at power-on from then on.
+In Chrome or Edge, with the FM-1 plugged in by USB, on [fm1-dock's page](https://joakimeriksson.github.io/fm1-dock/#install):
 
-### The standalone package (not yet for a real FM-1)
+1. **Install fm1-dock on my FM-1** (skip it if fm1-dock 0.6 or later is on it already).
+2. **Add FM-1 SID to my fm1-dock**: the module goes into fm1-dock's flash next to its other synths, with GoatTracker
+   2's example songs. Nothing else on the FM-1 changes.
+3. On the FM-1, hold **HOME** for 1.5 s and pick **FM-1 SID**. fm1-dock starts it at power-on from then on.
 
-1. Get the update package: `sidplayer.fwsc` from the page above (or `fm1-sid/web/` here), or
-   make one with your own tunes ([below](#your-own-tunes-on-the-fm-1)).
-2. Install it like any community firmware package (.fwsc), with the installer you use for
-   those.
-3. **To install something else later**, run its installer: FM-1 SID answers the installers as
-   Felucca does (its update code), so they find it and install through it. If one does not,
-   hold **HOME** for 5 seconds (or while switching on): **USB MODE**, the sound and the player
-   off and only USB running; then run the installer again. **HOME** leaves USB mode. If FM-1
-   SID ever fails to start twice in a row, the third start is in USB mode. **OCT−** and
-   **OCT+** held for 3 seconds go to the chip's own update mode ("UBOOT"), which only the
-   recovery tools of step 4 can write to (from Windows or Linux, not a Mac).
-4. **If nothing else works**, the FM-1 has its own recovery, outside any firmware: hold OCT−
+To hear the classics right away, the same page has **▶ Arkanoid**, **▶ Wizball** and **▶ Commando**, and on the
+[FM-1 SID page](https://joakimeriksson.github.io/fm1-emu/fm1-sid/) **Play on my FM-1** sends any of HVSC's tunes to it (into its memory: nothing is written to
+flash).
+
+By hand, in fm1-dock's tree: `uv run --with python-rtmidi tools/dock.py deploy fm1sid.dock`, or drop the file on
+[the console](https://joakimeriksson.github.io/fm1-dock/#console). `fm1sid.dock` is on the page, or built with your own tunes
+([below](#your-own-tunes-on-the-fm-1)).
+
+### FM-1 SID as its own firmware
+
+FM-1 SID can also be the whole firmware: fm1-dock with FM-1 SID as its only synth (and the sine), starting in it.
+
+1. **Install FM-1 SID on my FM-1** on the [FM-1 SID page](https://joakimeriksson.github.io/fm1-emu/fm1-sid/) or [the install page](https://joakimeriksson.github.io/fm1-dock/install/); or
+   `fm1-sid-X.Y.fwsc` from the [latest release](https://github.com/joakimeriksson/fm1-sid/releases/latest) with
+   fm1-dock's `tools/fm1_install.py`; or build one with your own tunes ([below](#your-own-tunes-on-the-fm-1)).
+2. **To install something else later**, run its installer, or the [Firmware Hub](https://fm1.designburgapps.com):
+   fm1-dock answers them. If one does not reach it, switch the FM-1 on with **OCT−** held: fm1-dock's USB rescue,
+   only the updater running ([fm1-dock's keys](https://github.com/joakimeriksson/fm1-dock#play-it)).
+3. **If nothing else works**, the FM-1 has its own recovery, outside any firmware: hold OCT−
    and OCT+ while switching it on, with the USB cable plugged in, and use M-flasher, the
    Firmware Hub or [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker) with the
    official firmware (issues #22 and #23). FM-1 SID never writes the flash this needs.
@@ -186,21 +193,22 @@ emulator (`fm1-live --usb`), but on the one real FM-1 tried so far the installer
 
 ### Your own tunes on the FM-1
 
-The tunes are built into the update package. With this repository (after
-`tools/fetch_ext.sh` and `firmware/build.sh`, see [Ways to build it](#ways-to-build-it)):
+To carry your own .sid tunes and .sng songs in flash (so **PRESETS** steps through them), build FM-1 SID with them.
+With this repository and [fm1-dock](https://github.com/joakimeriksson/fm1-dock) next to it (`FM1_DOCK`), after
+`tools/fetch_ext.sh` (see [Ways to build it](#ways-to-build-it) and [dock/](dock/README.md)):
 
 ```sh
-tools/fwsc.py my.fwsc Commando.sid Arkanoid.sid:1 Dojo.sng Dojo.sng:3
+dock/build.sh Commando.sid Arkanoid.sid:1 Dojo.sng          # -> build/dock/fm1sid.dock: the module
+dock/build_solo.sh Commando.sid Wizball.sid:7 Dojo.sng      # -> build/solo/fm1-sid.fwsc: its own firmware
 ```
 
-- `:N` picks the song in a .sid (from 1), or the subtune in a .sng (from 1). Without it: the
-  tune's own start song, the song's first subtune. List a file twice for two of its songs.
-- `--first N` starts on entry N (from 0), `--chip 6581` or `--chip 8580` sets the chip for all,
-  `--own` starts on the own SID model, `--synth` starts in the synth.
-- About 360 KB of tunes fit (a .sid is 2-20 KB, a GoatTracker song 1-20 KB). Each file is
-  checked first; one the FM-1 would not play is named, with the reason.
+- `:N` picks the song in a .sid (from 1), or the subtune in a .sng (from 1). Without it: the tune's own start
+  song, the song's first subtune. List a file twice for two of its songs.
+- About 64 KiB of tunes fit in the module beside its code (a .sid is 2-20 KB, a GoatTracker song 1-20 KB); its own
+  firmware takes more. Each file is checked first; one the FM-1 would not play is named, with the reason.
 
-Then install `my.fwsc` as above. A new set of tunes is a new package to install.
+Deploy the module or install the package as above. A tune you only want to hear needs none of this: **Play on my
+FM-1** on the [FM-1 SID page](https://joakimeriksson.github.io/fm1-emu/fm1-sid/) sends it. Songs you write in the editor are saved on the FM-1 itself.
 
 ### The SID synth
 
@@ -229,6 +237,9 @@ A GoatTracker song is built from four things:
 
 GoatTracker's own manual (`readme.txt` in its release) explains all of it in depth; the
 editor here edits the same song, and it plays exactly as in GoatTracker.
+
+**New to trackers?** Start with [your first chiptune, step by step](#your-first-chiptune-step-by-step): a bass, chords
+and drums from an empty song in about 15 minutes. The pages below are the reference.
 
 **Open it**: press **SEQ** in the player. If the tune playing is a GoatTracker song, it opens
 in the editor; if it is a .sid tune, you get a new, empty song. **HOME** leaves the editor
@@ -371,31 +382,88 @@ appear in the player after the package's tunes, where **SEQ** opens them again. 
 share about 290 KB of flash. **Installing a package again can wipe the saved songs**, and
 there is no way yet to copy them to a computer.
 
-#### Your first song, step by step
+#### Your first chiptune, step by step
 
-A new song's instruments have no wave table yet, so they make no sound. Make one first:
+A loop with the classic C64 sound: a pulsing bass, arpeggio chords (the chord played one note per frame, so
+fast it sounds like one) and drums made of noise. About 15 minutes, all on the FM-1; every step below was
+played key by key on the emulated FM-1 and the bar recorded. It is one bar, and step 6 says where to take it from there.
 
-1. In the player, go to a .sid tune (for example Wizball) and press **SEQ**: a new song opens
-   on the PATTERNS page.
-2. Press **SEQ** twice for INSTRUMENT, then **REC**. Instrument 01 is selected. Type **0 9**
-   (attack 0, decay 9), **0 0** (sustain 0, release 0) and **0 1** (the sound starts in wave
-   table row 01). Each pair moves to the next field.
-3. Press **SEQ** for TABLES. The cursor is on row 01 of WAVE. Type **2 1 0 0** (row 01:
-   sawtooth with the gate on, the played note) and then **F F 0 0** (row 02: stop here).
-4. Press **SEQ** twice to get round to PATTERNS. Still with REC on, play some keys: each writes
-   a note with instrument 01 and moves down a row. Turn **KNOB4** to 2 or 4 to leave space
-   between the notes, use **ARP** for a key off and **GLO** to clear.
-5. Press **PLAY**: the patterns loop from the top. A pattern is 64 rows (40 hex), about 8
-   seconds; turn **KNOB3** to make it shorter, for example 10 (16 rows). **PLAY** again stops.
-6. For a longer song, go to ORDERS: channel 1 plays pattern 00, channel 2 pattern 01,
-   channel 3 pattern 02, then starts again. Insert entries with **SCL** and type pattern
-   numbers; turn **KNOB2** on PATTERNS to fill the new patterns.
-7. Go to SONG, give it a name, and press **SAVE**. Press **HOME**: it is in the player's list.
+What you type are hex digits, with **REC** on: the 16 keys from **C4** to **D#5** type **0**-**F**
+([the table above](#controls-on-every-page)). "Turn **PRESETS**" moves the cursor up or down, "turn
+**SELECT**" left or right, one row or one digit a click.
 
-For other sounds: a pulse wave is `41 00` in the wave table, and it needs a pulse width. Set the
-instrument's Pulsetable to 01 and in the PULSE table write row 01 `88 00` (width 800), row 02
-`20 20` (sweep up for 32 frames) and row 03 `FF 01` (back to row 01). A sustain level
-(Sustain/Rel. `A0`) makes notes hold until their key off.
+**1. A new song.** In the player press **SEQ**: the editor opens the song playing. Press **SEQ** four more
+times, to the SONG page, and **SCL** twice: a new, empty song.
+
+**2. Six instruments.** Press **SEQ** three times, to INSTRUMENT, and **REC** (it lights red). Instrument 01 is
+shown, the cursor on Attack/Decay. Type its digits: each pair fills a field and moves to the next.
+
+| Instrument | Type | What it sets |
+|---|---|---|
+| 01 Bass | `08 48 01 01` | Attack/Decay 08, Sustain/Rel. 48, Wavetable 01, Pulsetable 01 |
+| 02 Lead | `09 A8 01 01 00 01 08` | the same sound, held longer, with vibrato: Filtertable 00, Vibrato par. 01, Vibrato del. 08 |
+| 03 Chords | `09 A8 04 01` | Wavetable 04: the chord |
+| 04 Kick | `00 88 09 00` | Wavetable 09 |
+| 05 Snare | `00 9A 0E 00` | Wavetable 0E |
+| 06 Hat | `00 56 13 00` | Wavetable 13 |
+
+Before each next one: turn **KNOB1** one click to the next instrument, then turn **PRESETS** back up until the
+cursor is on Attack/Decay again (it stays on the field it was on).
+
+**3. The sounds: the tables.** Press **SEQ**: TABLES, the cursor on WAVE row 01. Type these rows, four digits
+each; after the fourth digit the cursor goes on to the next row by itself.
+
+| WAVE rows | Type | What it is |
+|---|---|---|
+| 01-03 | `41 00` `0F 80` `FF 02` | a pulse wave at the played note, held (bass and lead) |
+| 04-08 | `41 00` `41 03` `41 07` `41 0C` `FF 04` | a minor chord: the note, +3, +7, +12 semitones, a frame each, round and round |
+| 09-0D | `81 A8` `11 9F` `11 9A` `11 96` `FF 00` | kick: a click of noise, then a triangle falling in pitch |
+| 0E-12 | `81 BE` `81 BA` `81 B6` `81 B2` `FF 00` | snare: four frames of noise |
+| 13-15 | `81 D4` `81 D0` `FF 00` | hi-hat: two frames of high noise |
+
+Then turn **PRESETS** back up to row 01 and **SELECT** four clicks right, into PULSE, and type
+`87 40` `30 08` `30 F8` `FF 02`: the pulse width set, then swept up and down for ever (the classic C64 "PWM"
+sound of the bass). Turn **PRESETS** back up to row 01 again and **SELECT** eight more clicks right, into SPEED, and
+type `08 18`: the lead's vibrato.
+
+**4. The notes.** Press **SEQ** twice: PATTERNS, the cursor on channel 1, row 00. The three columns are the
+SID's three channels: bass, chords and drums.
+
+- Turn **KNOB3** down until the top says `P00:10` (16 rows: one bar), **KNOB4** to `S2` (a note every other
+  row), **KNOB1** to `I01`, and press **OCT−** once (`O3`).
+- **The bass**: play **A3, A4, A3, A4, D4, D5, D4, D5**. Each key writes its note an octave down (`A-2`, `A-3`
+  ... `D-4`) with instrument 01 and moves two rows; after the eighth the cursor is back on row 00.
+- **The tempo**: turn **SELECT** three clicks right, onto the command of row 00, and type `F 0 6` (command F,
+  tempo 06: six frames a row, about 125 BPM). A new song has no tempo of its own.
+- **The chords**: the cursor has moved down to row 02: turn **PRESETS** back up to row 00 and **SELECT** three
+  clicks right, onto channel 2. **KNOB3** down to `P01:10`, **KNOB4** to `S8`, **KNOB1** to `I03`, and play
+  **A4** and **D4**: an A minor chord on row 00, D minor on row 08.
+- **The drums**: turn **SELECT** six clicks right, onto channel 3. **KNOB3** down to `P02:10`, **KNOB4** to `S4`.
+  Then **KNOB1** to the drum and any key (C4) for each: `I04` (kick, row 00), `I06` (hat, row 04), `I05`
+  (snare, row 08), `I06` (hat, row 0C).
+
+**5. Play it, save it.** **PLAY**: the bar loops, the cursor running with it (about two seconds a bar).
+**PLAY** again stops. **SAVE**: the bottom line says *saved in slot 0* (the first free one of 16), and the SONG
+page lists it. To name it: on the SONG page, with REC on, **ALGORITHM** changes the letter under the cursor and
+**SELECT** moves along the name; then **SEQ** to another page and **SAVE** again (press it on PATTERNS, say: on the
+SONG page it works on the slot list). **HOME** leaves the editor: your song is now in the player's list (**PRESETS**
+steps to it), and **SEQ** there opens it again.
+
+**6. Make it yours.**
+
+- **A melody**: channel 2 with instrument 02 (Lead) instead of the chords, or a new pattern for it: **KNOB2** on
+  PATTERNS shows another pattern number on the cursor's channel, and on ORDERS you say which plays when.
+- **More bars**: on ORDERS, **SCL** inserts entries. A transpose before a pattern plays it higher: `F2` then
+  `00` plays the bass two semitones up, the same pattern.
+- **A major chord**: wave rows `41 00` `41 04` `41 07` `41 0C` and an `FF` back to the first of them, in rows of
+  their own (for example from 16), and an instrument whose Wavetable points there.
+- **The filter**: the commands **B** (filter on, which channels), **C** (cutoff) and **A** (a filter table
+  program) in the patterns: a bass with a sweeping filter is the next classic sound.
+- **Learn from the masters**: the songs in the player (Dojo, Unleash, Sanction and the others, from GoatTracker
+  2's examples) open in the editor with **SEQ** like your own: see how their tables make their sounds.
+- **On a computer**: GoatTracker 2 itself, or [sid-tracker](https://github.com/joakimeriksson/sid-tracker) in the
+  browser, writes the same .sng files; build them into FM-1 SID ([your own tunes](#your-own-tunes-on-the-fm-1))
+  and they play as they do there.
 
 #### The emulator's keyboard
 

@@ -213,6 +213,13 @@
   .ctl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
   .ctl-grid div { padding: 16px 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); }
   .ctl-grid h3 { margin: 0 0 8px; font-size: 14px; }
+  .steps { margin: 0 0 16px; padding-left: 22px; color: var(--dim); max-width: 820px; }
+  .steps li { margin: 0 0 6px; }
+  .recipe { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .recipe td { padding: 3px 8px 3px 0; vertical-align: top; color: var(--dim); }
+  .recipe td:first-child { white-space: nowrap; color: var(--ink); }
+  .recipe code { font-family: var(--mono); color: var(--ink); }
+  .recipe + p { margin-top: 8px; }
   .ctl-grid p { margin: 0; color: var(--dim); font-size: 13.5px; }
   kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line2); border-bottom-width: 2px; background: var(--card2); color: var(--ink); }
 
@@ -253,7 +260,7 @@
       <svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" rx="6" fill="#40318d"/><path d="M5 17 9.5 8l4.5 9 3-6 3.5 6" fill="none" stroke="#a59bf0" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg>
       FM-1 · SID
     </a>
-    <nav><a href="#how">How it works</a><a href="#controls">Controls</a><a class="gh" href="https://github.com/joakimeriksson/fm1-sid">Source</a></nav>
+    <nav><a href="#chiptune">Make a chiptune</a><a href="#how">How it works</a><a href="#controls">Controls</a><a class="gh" href="https://github.com/joakimeriksson/fm1-sid">Source</a></nav>
   </header>
 
   <section class="intro">
@@ -396,6 +403,50 @@
           (1x speed); its subtunes are its songs.</p>
       </div>
     </section>
+  </section>
+
+  <section class="ctl" id="chiptune">
+    <h2 class="sec">Write your own chiptune</h2>
+    <p class="sub">FM-1 SID has GoatTracker 2’s editor built in: the tracker C64 musicians use, on the FM-1’s knobs and keys,
+      while the song plays. The keys C4–D#5 type the hex digits 0–F. Here is a whole first song in about 15 minutes, a pulsing
+      bass, arpeggio chords and drums made of noise, played key by key on the emulated FM-1 before it was written down.
+      <a href="https://github.com/joakimeriksson/fm1-sid#your-first-chiptune-step-by-step">The full guide, step by step</a>.</p>
+    <ol class="steps">
+      <li><b>SEQ</b> in the player opens the editor; <b>SEQ</b> four more times to SONG, <b>SCL</b> twice: a new, empty song.</li>
+      <li><b>SEQ</b> to INSTRUMENT, <b>REC</b> on, and type the six instruments (<b>KNOB1</b> picks the instrument, <b>PRESETS</b> moves the cursor).</li>
+      <li><b>SEQ</b> to TABLES and type the sounds: wave rows from 01, the pulse sweep, the vibrato.</li>
+      <li><b>SEQ</b> twice to PATTERNS: the bass on channel 1 with the tempo command <code>F06</code>, the chords on 2, the drums on 3.</li>
+      <li><b>PLAY</b> loops it, <b>SAVE</b> keeps it in flash, <b>HOME</b>: it is in the player’s list.</li>
+    </ol>
+    <div class="ctl-grid">
+      <div><h3>Instruments</h3><table class="recipe">
+        <tr><td>01 Bass</td><td><code>08&nbsp;48&nbsp;01&nbsp;01</code></td></tr>
+        <tr><td>02 Lead</td><td><code>09&nbsp;A8&nbsp;01&nbsp;01&nbsp;00&nbsp;01&nbsp;08</code> vibrato</td></tr>
+        <tr><td>03 Chords</td><td><code>09&nbsp;A8&nbsp;04&nbsp;01</code></td></tr>
+        <tr><td>04 Kick</td><td><code>00&nbsp;88&nbsp;09&nbsp;00</code></td></tr>
+        <tr><td>05 Snare</td><td><code>00&nbsp;9A&nbsp;0E&nbsp;00</code></td></tr>
+        <tr><td>06 Hat</td><td><code>00&nbsp;56&nbsp;13&nbsp;00</code></td></tr>
+      </table><p>Attack/decay, sustain/release, where the sound starts in the wave and pulse tables.</p></div>
+      <div><h3>Wave table</h3><table class="recipe">
+        <tr><td>01 pulse</td><td><code>41&nbsp;00 · 0F&nbsp;80 · FF&nbsp;02</code></td></tr>
+        <tr><td>04 chord</td><td><code>41&nbsp;00 · 41&nbsp;03 · 41&nbsp;07 · 41&nbsp;0C · FF&nbsp;04</code></td></tr>
+        <tr><td>09 kick</td><td><code>81&nbsp;A8 · 11&nbsp;9F · 11&nbsp;9A · 11&nbsp;96 · FF&nbsp;00</code></td></tr>
+        <tr><td>0E snare</td><td><code>81&nbsp;BE · 81&nbsp;BA · 81&nbsp;B6 · 81&nbsp;B2 · FF&nbsp;00</code></td></tr>
+        <tr><td>13 hat</td><td><code>81&nbsp;D4 · 81&nbsp;D0 · FF&nbsp;00</code></td></tr>
+      </table><p>A waveform and a note per frame: <code>41</code> pulse, <code>11</code> triangle, <code>81</code> noise; <code>FF</code> jumps.
+        The chord is a minor arpeggio, so fast it sounds like one.</p></div>
+      <div><h3>Pulse, speed, notes</h3><table class="recipe">
+        <tr><td>Pulse 01</td><td><code>87&nbsp;40 · 30&nbsp;08 · 30&nbsp;F8 · FF&nbsp;02</code></td></tr>
+        <tr><td>Speed 01</td><td><code>08&nbsp;18</code> the lead’s vibrato</td></tr>
+        <tr><td>Bass</td><td>A-2 A-3 A-2 A-3 D-3 D-4 D-3 D-4, every other row</td></tr>
+        <tr><td>Chords</td><td>A-3 on row 00, D-3 on 08: A minor, D minor</td></tr>
+        <tr><td>Drums</td><td>kick 00, hat 04, snare 08, hat 0C</td></tr>
+      </table><p>The pulse sweep is the classic C64 “PWM” bass. Then: a melody with the lead, more bars on ORDERS, the filter.</p></div>
+    </div>
+    <p class="note">The editor is the same on the emulated FM-1 above (press Power, pick a GoatTracker song, <kbd>0</kbd> for SEQ) and on
+      a real one. The songs in the playlist, from GoatTracker 2’s examples, open in the editor too: see how their tables make
+      their sounds. GoatTracker 2 on a computer, or <a href="https://github.com/joakimeriksson/sid-tracker">sid-tracker</a> in
+      the browser, writes the same .sng files; drop them on <i>Your files</i> to play them here.</p>
   </section>
 
   <section class="how" id="how">
