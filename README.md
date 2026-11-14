@@ -1053,3 +1053,5 @@ takes any length).
    sid-tracker); copy / paste of rows and patterns; a flash store in fm1-dock's boot slot (its
    flash is fm1-dock's to give); the page following the editor (it mirrors the player and the
    synth only); faster entry (a computer's keys through the page).
+
+You can also try FM-1 SID in the browser, no flashing needed, in the free community [FM-1 Emulator](https://fm1-emulator.atst.tools/).
