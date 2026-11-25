@@ -67,7 +67,7 @@ order lists, instruments, tables and the song's name, edited with the FM-1's kno
 keys C4-D#5 type hex 0-F) while the song plays. Songs are saved in 16 flash slots and show up in
 the player's list. How to use it is in the [user guide](#user-guide-fm-1-sid).
 
-> **On real FM-1s**: FM-1 SID plays as an fm1-dock module (release 0.3): .sid tunes, RSID tunes, GoatTracker songs,
+> **On real FM-1s**: FM-1 SID plays as an fm1-dock module (release 0.3.1): .sid tunes, RSID tunes, GoatTracker songs,
 > the editor and its saves, and tunes sent from the browser. The first build, a firmware of its own on Felucca's
 > platform, did not play on the first real FM-1 it was tried on (2026-10-24); that is why it runs on fm1-dock,
 > which owns USB, the installers and the rescue.
